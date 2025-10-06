@@ -1,0 +1,92 @@
+x-default-config:
+  &x-default-config
+  image: '${IMAGE}'
+  restart: always
+  env_file:
+    - .env
+  working_dir: /home/app/donacion_medicamentos
+
+networks:
+  factos_network:
+    name: factos_network
+
+
+services:
+
+  donacion_medicamentos:
+    <<: *x-default-config
+    command: gunicorn donacion_medicamentos.wsgi:application --name factos_gunicorn --workers 1 --timeout 120 --bind 0.0.0.0:8000 --log-level=debug --log-file=/home/app/logs/donacion_medicamentos.log --forwarded-allow-ips '*'
+    volumes:
+      - .:/home/app/donacion_medicamentos
+      - ./static:/home/app/static
+      - ./media:/home/app/media
+      - ./logs:/home/app/logs
+    expose:
+      - 8000
+    ports:
+      - '8000:8000'
+    networks:
+      - factos_network
+
+  celery:
+    <<: *x-default-config
+    volumes:
+      - .:/home/app/donacion_medicamentos
+      - ./media:/home/app/media
+      - ./logs:/home/app/logs
+    command: celery -A donacion_medicamentos worker -l INFO --queues=invoice_processing,default
+    networks:
+      - factos_network
+
+  telegram_bot:
+    <<: *x-default-config
+    volumes:
+      - .:/home/app/donacion_medicamentos
+      - ./media:/home/app/media
+      - ./logs:/home/app/logs
+    command: python bot.py
+    depends_on:
+      - donacion_medicamentos
+      - redis
+    networks:
+      - factos_network
+    restart: unless-stopped
+
+  # celerybeat:
+  #   <<: *x-default-config
+  #   volumes:
+  #     - .:/home/app/donacion_medicamentos
+  #     - ./media:/home/app/media
+  #     - ./logs:/home/app/logs
+  #   command: celery -A donacion_medicamentos beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler --pidfile=/home/app/celery.pid
+  #   networks:
+  #     - factos_network
+
+  # NGINX: Reverse proxy for the application
+  nginx:
+    restart: always
+    image: nginx:latest
+    ports:
+      - '81:80'
+    depends_on:
+      - donacion_medicamentos
+    volumes:
+      - ./nginx:/etc/nginx/conf.d # Nginx configuration
+      - ./static:/home/app/static # Static files
+      - ./media:/home/app/media # Media files
+    networks:
+      - factos_network
+
+  redis:
+    image: redis:latest
+    restart: always
+    command: redis-server
+    volumes:
+      - ../redis_volume:/data
+    expose:
+      - 6379
+    ports:
+      - '6379:6379'
+    networks:
+      - factos_network
+

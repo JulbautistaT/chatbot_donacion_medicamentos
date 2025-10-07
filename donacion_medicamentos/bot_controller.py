@@ -7,7 +7,7 @@ from pathlib import Path
 from stock import models as stock_models
 from telegram import ForceReply, Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
-
+from datetime import datetime
 
 # Enable logging
 logging.basicConfig(
@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 class BotController:
+    def get_or_create_session(self, user_id):
+        """Obtener o crear la sesión del usuario (público)."""
+        return self.__get_or_create_session(user_id)
     STEP_NEW_USER = "NEW_USER"
     STEP_REQ_DOCUMENT = "REQUEST_DOCUMENT"
     STEP_REQ_NAME = "REQUEST_NAME"
@@ -41,9 +44,13 @@ class BotController:
 
     def __init__(self,):
         self.__application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
-        self.__sessions = [
-            {
-                "user_id": None,
+        self.__sessions = []
+        
+    def __get_or_create_session(self, user_id):
+        session = next((s for s in self.__sessions if s["user_id"] == user_id), None)
+        if not session:
+            session = {
+                "user_id": user_id,
                 "session_data": {
                     "documento": None,
                     "nombre": None,
@@ -57,8 +64,27 @@ class BotController:
                 "is_cancelled": False,
                 "is_error": False,
                 "error_message": None,
+                "last_activity": None,
             }
-        ]
+            self.__sessions.append(session)
+        return session
+
+        
+    def __update_last_activity(self, user_id):
+        """Update last activity timestamp for the user session."""
+        session = self.get_or_create_session(user_id)
+        session["last_activity"] = datetime.now()
+
+    def __is_session_expired(self, user_id, hours=12):
+        """Check if the session has expired due to inactivity (default 5 hours)."""
+        session = self.get_or_create_session(user_id)
+        if session and session.get("last_activity"):
+            elapsed = datetime.now() - session["last_activity"]
+            if elapsed.total_seconds() > hours * 3600:
+                # Expirada → cerramos y borramos sesión
+                self.__end_session(user_id, "Sesión cerrada por inactividad")
+                return True
+        return False
     
 
     def get_user(self, user_id):
@@ -150,35 +176,33 @@ class BotController:
 
     def __update_session(self, user_id, step, session_data):
         """Update the session for the user."""
-        session = next((s for s in self.__sessions if s["user_id"] == user_id), None)
-        if session:
-            session["step"] = step
-            session["session_data"].update(session_data)
-        else:
-            self.__sessions.append({
-                "user_id": user_id,
-                "session_data": session_data,
-                "step": step,
-                "is_active": True,
-                "is_completed": False,
-                "is_cancelled": False,
-                "is_error": False,
-                "error_message": None,
-            })
-
+        session = self.get_or_create_session(user_id)
+        session["step"] = step
+        session["session_data"].update(session_data)
+        session["last_activity"] = datetime.now()
+        return session
 
     def __end_session(self, user_id, error_message=None):
-        """End the session for the user."""
-        session = next((s for s in self.__sessions if s["user_id"] == user_id), None)
-        if session:
-            session["is_active"] = False
-            session["is_completed"] = True
-            session["is_cancelled"] = True
-            session["is_error"] = bool(error_message)
-            session["error_message"] = error_message
-            # Delete solicitud_obj from session_data if present
-            session["session_data"].pop("solicitud_obj", None)
-            logger.info(f"Session for user {user_id} ended. Error: {error_message}")
+        """End and remove the session for the user."""
+        session_index = next((i for i, s in enumerate(self.__sessions) if s["user_id"] == user_id), None)
+        
+        if session_index is not None:
+            session = self.__sessions.pop(session_index)  # Elimina la sesión de la lista
+            
+            # Si la sesión ya tenía una solicitud en la BD
+            solicitud_obj = session['session_data'].get('solicitud_obj')    
+            if solicitud_obj:
+                try:
+                    solicitud_obj.delete()
+                    logger.info(f"Solicitud asociada al usuario {user_id} fue eliminada.")
+                except Exception as e:
+                    logger.error(f"Error al eliminar la solicitud asociada al usuario {user_id}: {e}")
+                
+            logger.info(
+                f"Session for user {user_id} removed. "
+                f"Error: {error_message if error_message else 'No error'}"
+            )
+            
         else:
             logger.error(f"No active session found for user {user_id}. Cannot end session.")
 
@@ -249,10 +273,32 @@ class BotController:
         return formula_obj
 
 
+    async def end_session_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        # Close session
+        user_id = update.effective_user.id
+        self.__end_session(user_id, "Sesión finalizada por el usuario con /salir")
+
+        await update.message.reply_text(
+            "✅ Tu sesión ha sido cerrada correctamente.\n"
+            "Puedes iniciar una nueva con /iniciar.",            
+        )
+        
+        
     async def request_session_step(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Request the next step in the session."""
+        
         user_id = update.effective_user.id
         session = next((s for s in self.__sessions if s["user_id"] == user_id), None)
+            
+        if session and self.__is_session_expired(user_id):
+            self.__end_session(user_id, "Sesión cerrada por inactividad")
+            await update.message.reply_text(
+                "⏳ Tu sesión se cerró por inactividad."
+                "Usa /iniciar para comenzar de nuevo.",
+            )
+            return  
+        
+        self.__update_last_activity(user_id)          
+            
 
         if session and session["step"] == self.STEP_NEW_USER:
 
@@ -781,7 +827,7 @@ class BotController:
 
             logger.warning(f"Received message in unexpected step: {session['step'] if session else 'No session found'}")
             await update.message.reply_text(
-                "Lo siento, no estoy seguro de cómo responder a eso. Por favor, inicia una nueva sesión con /iniciar.",
+                "Lo siento, no reconozco esa opción. Por favor, inicia una nueva sesión con /iniciar.",
                 reply_markup=ForceReply(selective=True),
             )
 
@@ -797,7 +843,9 @@ class BotController:
         session = next((s for s in self.__sessions if s["user_id"] == user_id), None)
         if session and session["is_active"]:
             logger.info(f"User {user_id} already has an active session.")
-            await update.message.reply_text("Ya tienes una sesión activa. Por favor, completa la sesión actual.")
+            await update.message.reply_text(
+                "👋 Ya tienes una sesión activa. Por favor, completa la sesión actual."
+                )
             return
 
 
@@ -812,6 +860,7 @@ class BotController:
                 "direccion_beneficiario": solicitante_obj.direccion_beneficiario,
                 "edad": solicitante_obj.edad,
             }
+            
             self.__update_session(user_id, self.STEP_KNOWN_USER, session_data)
 
 
@@ -859,18 +908,10 @@ class BotController:
         """Start the bot."""
         # Starts the bot and registers handlers
         self.__application.add_handler(CommandHandler("iniciar", self.wellcome_user))
+        self.__application.add_handler(CommandHandler("salir", self.end_session_command))
 
         # Register the message handler for the request session step
         self.__application.add_handler(MessageHandler(filters.TEXT | filters.Document.ALL | filters.PHOTO, self.request_session_step))
 
         # Start the Bot
         self.__application.run_polling(allowed_updates=Update.ALL_TYPES)
-        
-        # Close the Bot and registers handlers
-        #self.__application.add_handler(CommandHandler="salir", self.__end_session)
-        
-        # Close the Bot automatic at 7 pm
-        
-        # Close the Bot and re
-
-    

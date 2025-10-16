@@ -338,65 +338,7 @@ class BotController:
         # -------------------------------
         # STEP: Política de datos
         # -------------------------------
-
-        if step == self.STEP_NEW_USER:
-            if text.lower() in ["acepto", "sí­", "si", "acepto ✅"]:
-                session["step"] = self.STEP_REQ_DOCUMENT
-                await update.message.reply_text(
-                    "📝 Por favor, escribe el número de documento de la persona que necesita los medicamentos."
-                    "Este dato es necesario para continuar con la solicitud. 🆔\n\n"
-                    "Ejemplo: <code>123456789</code>",
-                    reply_markup=ForceReply(selective=True),
-                    parse_mode="HTML",
-                )
-            else:
-                await update.message.reply_text(
-                    "Debes aceptar la polí­tica de datos para continuar. Escribe 'Acepto'."
-                )
-            return
-            
-
-
-        # -------------------------------
-        # STEP: Documento
-        # -------------------------------
-        elif step == self.STEP_REQ_DOCUMENT:
-            documento = text
-            solicitante_obj = self.get_user(documento)
-
-            if solicitante_obj:
-                # Usuario ya existe → cargar datos
-                session["session_data"].update({
-                    "documento": solicitante_obj.documento,
-                    "nombre": solicitante_obj.nombre,
-                    "direccion_beneficiario": solicitante_obj.direccion_beneficiario,
-                    "edad": solicitante_obj.edad,
-                })
-                session["step"] = self.STEP_KNOWN_USER
-
-                first_name = solicitante_obj.nombre.split(" ")[0]
-                await update.message.reply_text(
-                    f"👋 ¡Hola {first_name}! Hemos encontrado tus datos.\n"
-                    "¿Qué deseas hacer hoy?",
-                    reply_markup=ReplyKeyboardMarkup(
-                        [
-                            ["💊 Solicitar medicamentos", "📋 Consultar el estado de una solicitud"]
-                        ],
-                        one_time_keyboard=True,
-                        selective=True,
-                    )
-                )
-            else:
-                # Usuario no existe → pedir nombre
-                session["session_data"]["documento"] = documento
-                session["step"] = self.STEP_REQ_NAME
-                await update.message.reply_text(
-                    "ℹ️ No encontramos tu documento en el sistema.\n"
-                    "Por favor ingresa tu nombre completo para registrarte:"
-                )
-            return
-
-
+        
         if step == self.STEP_NEW_USER:
             # Pedir documento siempre después de aceptación de política (o al iniciar)
             logger.info(f"[{telegram_id}] STEP_NEW_USER -> solicitando documento")
@@ -432,14 +374,17 @@ class BotController:
                     "direccion_beneficiario": solicitante_obj.direccion_beneficiario,
                     "edad": solicitante_obj.edad,
                 })
+               
                 first_name = solicitante_obj.nombre.split()[0] if solicitante_obj.nombre else "Usuario"
                 await update.message.reply_html(
                     f"👋 ¡Hola {first_name}! He encontrado un registro con el documento {document_number}.\n"
-                    "¿Los datos están correctos?",
+                    "¿Los siguientes datos están correctos?. \n"
+                    f"Edad: {solicitante_obj.edad}.\n"
+                    f"Dirección: {solicitante_obj.direccion_beneficiario}.\n"
+                    "Si todo está correcto, presiona <b>Sí, correcto ✅</b> para continuar.\n",
                     reply_markup=ReplyKeyboardMarkup(
                         [[KeyboardButton("Sí, correcto ✅"), KeyboardButton("No, corregir ✏️")]],
                         one_time_keyboard=True,
-                        resize_keyboard=True,
                         selective=True
                     )
                 )
@@ -447,8 +392,10 @@ class BotController:
                 # No existe: pedimos nombre (creación de nuevo usuario)
                 session = self.__update_session(telegram_id, self.STEP_REQ_NAME, {"documento": document_number})
                 await update.message.reply_text(
-                    "No encontré un usuario con ese documento. Por favor, escribe el nombre completo de la persona:",
+                    "🙋‍♂️ ¡Gracias! Ahora, por favor escribe el nombre completo de la persona que necesita los medicamentos. 📝 \n\n"
+                    "Ejemplo: <code>Juan Pérez</code>",
                     reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML",
                 )
             return
 
@@ -468,7 +415,7 @@ class BotController:
             logger.info(f"[{telegram_id}] Nombre recibido: {name}")
             session = self.__update_session(telegram_id, self.STEP_REQ_AGE, {"nombre": name})
             await update.message.reply_text(
-                "🎂 Ahora, por favor escribe la <b>edad</b> de la persona:",
+                "🎂  ¡Perfecto! Ahora, por favor escribe la <b>edad</b> de la persona que necesita los medicamentos. 👶🧓",
                 reply_markup=ForceReply(selective=True),
                 parse_mode="HTML"
             )
@@ -487,8 +434,10 @@ class BotController:
             logger.info(f"[{telegram_id}] Edad recibida: {age}")
             session = self.__update_session(telegram_id, self.STEP_REQ_ADDRESS, {"edad": age})
             await update.message.reply_text(
-                "🏠 Por favor escribe la dirección del beneficiario:",
+                "🏠 ¡Genial! Ahora, por favor escribe la dirección de la persona que necesita los medicamentos. 📍 \n\n"
+                "Ejemplo: <code>Calle 123 #45-67, Barrio Centro</code>",
                 reply_markup=ForceReply(selective=True),
+                parse_mode="HTML",
             )
             return
 
@@ -497,7 +446,7 @@ class BotController:
             address = text
             if not address:
                 await update.message.reply_text(
-                    "Por favor escribe una dirección válida.",
+                    "Por favor esscribe una dirección válida.",
                     reply_markup=ForceReply(selective=True),
                 )
                 return
@@ -523,37 +472,45 @@ class BotController:
                     solicitante_obj.save()
                     logger.info(f"[{telegram_id}] Solicitante {solicitante_obj.id} actualizado.")
 
-            # Mensaje de opciones
+            # Registro completado, mostrar menú principal
             await update.message.reply_text(
-                f"✅ Registro completado para documento {solicitante_obj.documento}.\n"
-                "¿Qué deseas hacer ahora?",
+                f"✅ ¡Registro completado!\n\n"
+                f"🙋‍♂️ <b>Nombre:</b> {solicitante_obj.nombre}\n"
+                f"🆔 <b>Documento:</b> {solicitante_obj.documento}\n"
+                f"🏠 <b>Dirección:</b> {solicitante_obj.direccion_beneficiario}\n"
+                f"🎂 <b>Edad:</b> {solicitante_obj.edad}\n\n"
+                "¿Qué deseas hacer ahora?\n"
+                "Selecciona una opción:",
                 reply_markup=ReplyKeyboardMarkup(
-                    [[KeyboardButton("💊 Solicitar medicamentos"), KeyboardButton("📋 Consultar el estado de una solicitud")]],
+                    [
+                        [KeyboardButton("💊 Solicitar medicamentos"), KeyboardButton("📋 Consultar el estado de una solicitud")]
+                    ],
                     one_time_keyboard=True,
-                    resize_keyboard=True,
-                    selective=True
+                    selective=True,
                 ),
-                parse_mode="HTML"
+                parse_mode="HTML",
+
             )
             return
 
         # -------------- Usuario conocido (confirmación) --------------
         if step == self.STEP_KNOWN_USER:
-            # user_response puede contener "sí", "no", "solicitar", "consultar"
-            if "solicitar" in user_response:
+            # Usar 'text' en lugar de 'user_response'
+            text_lower = text.lower()
+            
+            if "solicitar" in text_lower:
                 self.__update_session(telegram_id, self.STEP_REQ_MEDICATIONS, {})
                 await update.message.reply_text(
                     "💊 ¿Quieres describir la lista de medicamentos o vas a subir una foto de la receta?",
                     reply_markup=ReplyKeyboardMarkup(
                         [[KeyboardButton("Sí ✅"), KeyboardButton("No, subiré una foto de la receta médica 📷")]],
                         one_time_keyboard=True,
-                        resize_keyboard=True,
                         selective=True
                     )
                 )
                 return
 
-            if "consultar" in user_response:
+            if "consultar" in text_lower:
                 # show request info for the documento in session
                 session = self.__find_active_session_for_telegram(telegram_id)
                 info = self.get_request_info(session, telegram_id)
@@ -561,29 +518,29 @@ class BotController:
                 return
 
             # Confirm user data correctness
-            if user_response.startswith("sí") or user_response.startswith("si"):
+            if text_lower.startswith("sí") or text_lower.startswith("si") or "correcto" in text_lower:
                 # data accepted: present same menu (in case confirm came from DB check)
                 await update.message.reply_text(
                     "Perfecto. ¿Qué deseas hacer ahora?",
                     reply_markup=ReplyKeyboardMarkup(
                         [[KeyboardButton("💊 Solicitar medicamentos"), KeyboardButton("📋 Consultar el estado de una solicitud")]],
                         one_time_keyboard=True,
-                        resize_keyboard=True,
                         selective=True
                     )
                 )
                 return
 
-            if user_response.startswith("no"):
-                # User wants to correct data: we'll ask edad then dirección (keep nombre y documento)
-                self.__update_session(telegram_id, self.STEP_REQ_AGE, {})  # next ask for age (keeps nombre/documento)
+            if text_lower.startswith("no") or "corregir" in text_lower:
+                self.__update_session(telegram_id, self.STEP_REQ_AGE, {})
                 await update.message.reply_text(
-                    "Entendido. Por favor escribe la nueva edad:",
+                    "Entendido. Vamos a actualizar tu información. 🔄\n\n"
+                    "🎂 Por favor escribe la <b>edad</b> de la persona que necesita los medicamentos. 👶🧓",
                     reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML"
                 )
                 return
 
-            # Si no se entiende:
+
             await update.message.reply_text(
                 "No entendí tu respuesta. Selecciona una opción del menú.",
                 reply_markup=ReplyKeyboardMarkup(
@@ -594,10 +551,11 @@ class BotController:
                 )
             )
             return
-
-        # -------------- Solicitud de medicamentos: decidir modo --------------
+        # -------------- Solicitud de medicamentos --------------
         if step == self.STEP_REQ_MEDICATIONS:
-            if "sí" in user_response or user_response.startswith("si"):
+            text_lower = text.lower()
+            
+            if "sí" in text_lower or text_lower.startswith("si"):
                 # pedir cuántos medicamentos
                 session = self.__update_session(telegram_id, self.STEP_REQ_MED_COUNT, {})
                 await update.message.reply_text(
@@ -606,7 +564,7 @@ class BotController:
                 )
                 return
 
-            if "foto" in user_response or "subir" in user_response:
+            if "foto" in text_lower or "subir" in text_lower:
                 # pedir foto de la receta (skip descripción)
                 session = self.__update_session(telegram_id, self.STEP_REQ_PHOTO, {})
                 await update.message.reply_text(
@@ -626,7 +584,8 @@ class BotController:
                 )
             )
             return
-
+        
+        
         # -------------- Cantidad de medicamentos --------------
         if step == self.STEP_REQ_MED_COUNT:
             count_text = text
@@ -655,7 +614,6 @@ class BotController:
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton("Continuar ▶️"), KeyboardButton("Cancelar ❌")]],
                     one_time_keyboard=True,
-                    resize_keyboard=True,
                     selective=True
                 )
             )
@@ -663,7 +621,9 @@ class BotController:
 
         # -------------- Empezar a describir medicamentos --------------
         if step == self.STEP_REQ_MED_DESCRIPTION:
-            if "continuar" in user_response:
+            text_lower = text.lower()
+            
+            if "continuar" in text_lower:
                 session = self.__update_session(telegram_id, self.STEP_REQ_MED_FIST_LETTER, {})
                 await update.message.reply_text(
                     "🔤 Escribe la primera letra del medicamento 1 que necesitas (ej: 'A' para Acetaminofén).",
@@ -671,7 +631,7 @@ class BotController:
                 )
                 return
 
-            if "cancel" in user_response or "cancelar" in user_response:
+            if "cancel" in text_lower or "cancelar" in text_lower:
                 # cancelar solicitud: marcar o eliminar solicitud_obj
                 solicitud_obj = session["session_data"].get("solicitud_obj")
                 if solicitud_obj:
@@ -688,6 +648,7 @@ class BotController:
 
             await update.message.reply_text("Por favor presiona 'Continuar' cuando estés listo.", reply_markup=ReplyKeyboardMarkup([[KeyboardButton("Continuar ▶️"), KeyboardButton("Cancelar ❌")]], one_time_keyboard=True, resize_keyboard=True, selective=True))
             return
+
 
         # -------------- Primera letra --------------
         if step == self.STEP_REQ_MED_FIST_LETTER:

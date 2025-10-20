@@ -5,7 +5,7 @@ from django.core import files as django_files
 from django.db.models import Count
 from pathlib import Path
 from stock import models as stock_models
-from telegram import ForceReply, Update, KeyboardButton, ReplyKeyboardMarkup
+from telegram import ForceReply, Update, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from datetime import datetime
 
@@ -39,6 +39,7 @@ class BotController:
     STEP_REQ_MED_QUANTITY = "REQUEST_MED_QUANTITY"
     STEP_REQ_MED_COUNT = "REQUEST_MED_COUNT"
     STEP_REQ_PHOTO = "REQUEST_PHOTO"
+    STEP_REQ_MORE_PHOTOS = "REQUEST_MORE_PHOTOS"
     STEP_REQ_INFO_REQUESTS = "REQUEST_INFO"
     STEP_END = "END"
 
@@ -220,7 +221,8 @@ class BotController:
             # Si el usuario ya ingresó el documento, lo asignamos
             if "documento" in session_data and session_data["documento"]:
                 session["documento"] = session_data["documento"]
-        
+        # actualizar última actividad al modificar la sesión
+        session["last_activity"] = datetime.now()
         return session
 
     def __end_session(self, telegram_id, documento=None, error_message=None):
@@ -309,7 +311,7 @@ class BotController:
             logger.info(f"Photo saved for request {solicitud_obj.id} by user {telegram_id}.")
 
         return formula_obj
-
+        
 
     async def end_session_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Comando para que el usuario cierre manualmente su sesión (/salir)."""
@@ -523,14 +525,21 @@ class BotController:
             
             if "solicitar" in text_lower:
                 self.__update_session(telegram_id, self.STEP_REQ_MEDICATIONS, {})
+
                 await update.message.reply_text(
-                    "💊 ¿Quieres describir la lista de medicamentos o vas a subir una foto de la receta?",
+                    "💊 ¿Quieres <b>describir la lista de medicamentos</b> que necesitas?\n\n"
+                    "Selecciona una opción:",
                     reply_markup=ReplyKeyboardMarkup(
-                        [[KeyboardButton("Sí ✅"), KeyboardButton("No, subiré una foto de la receta médica 📷")]],
+                        [
+                            [KeyboardButton("Sí ✅"), 
+                             KeyboardButton("No, subiré una foto de la receta médica 📷")]
+                        ],
                         one_time_keyboard=True,
-                        selective=True
-                    )
+                        selective=True,
+                    ),
+                    parse_mode="HTML"
                 )
+
                 return
 
             if "consultar" in text_lower:
@@ -546,7 +555,9 @@ class BotController:
                 await update.message.reply_text(
                     "Perfecto. ¿Qué deseas hacer ahora?",
                     reply_markup=ReplyKeyboardMarkup(
-                        [[KeyboardButton("💊 Solicitar medicamentos"), KeyboardButton("📋 Consultar el estado de una solicitud")]],
+                        [
+                            [KeyboardButton("💊 Solicitar medicamentos"), KeyboardButton("📋 Consultar el estado de una solicitud")]
+                        ],
                         one_time_keyboard=True,
                         selective=True
                     )
@@ -574,33 +585,48 @@ class BotController:
                 )
             )
             return
+        
+        
         # -------------- Solicitud de medicamentos --------------
         if step == self.STEP_REQ_MEDICATIONS:
-            text_lower = text.lower()
-            
-            if "sí" in text_lower or text_lower.startswith("si"):
-                # pedir cuántos medicamentos
-                session = self.__update_session(telegram_id, self.STEP_REQ_MED_COUNT, {})
+            # Texto seguro y limpio
+            text = update.message.text if update.message.text else ""
+            text_lower = text.strip().lower()
+            # Normalizar texto eliminando emojis u otros caracteres
+            text_clean = "".join(c for c in text_lower if c.isalnum() or c.isspace())
+
+            # --- Usuario quiere describir medicamentos ---
+            if "si" in text_clean or text_clean.startswith("sí"):
+                # Actualizar step a STEP_REQ_MED_COUNT
+                self.__update_session(telegram_id, self.STEP_REQ_MED_COUNT, {})
+
+                # Mensaje unificado
                 await update.message.reply_text(
-                    "🔢 ¿Cuántos medicamentos vas a solicitar? (máx. 10)",
+                    "🔢 ¿Cuántos medicamentos vas a solicitar?\n"
+                    "Por favor, escribe el número de medicamentos que necesitas solicitar.\n"
+                    "Recuerda que puedes solicitar hasta 10 medicamentos. 💊",
                     reply_markup=ForceReply(selective=True)
                 )
                 return
 
-            if "foto" in text_lower or "subir" in text_lower:
-                # pedir foto de la receta (skip descripción)
-                session = self.__update_session(telegram_id, self.STEP_REQ_PHOTO, {})
+            # --- Usuario quiere subir foto ---
+            if "foto" in text_clean or "subir" in text_clean:
+                # Actualizar step a STEP_REQ_PHOTO
+                self.__update_session(telegram_id, self.STEP_REQ_PHOTO, {})
+
                 await update.message.reply_text(
                     "📄 Por favor, sube el documento en PDF o una imagen de la fórmula médica.",
                     reply_markup=ForceReply(selective=True)
                 )
                 return
 
-            # no entendido
+            # --- Respuesta no entendida ---
             await update.message.reply_text(
                 "No entendí tu respuesta. ¿Deseas describir los medicamentos o subir una foto?",
                 reply_markup=ReplyKeyboardMarkup(
-                    [[KeyboardButton("Sí ✅"), KeyboardButton("No, subiré una foto de la receta médica 📷")]],
+                    [
+                        [KeyboardButton("Sí ✅"), KeyboardButton("No, subiré una foto de la receta médica 📷")]
+                    ],
                     one_time_keyboard=True,
                     resize_keyboard=True,
                     selective=True
@@ -633,13 +659,17 @@ class BotController:
             })
 
             await update.message.reply_text(
-                "📝 Ahora vamos a solicitar los medicamentos uno por uno. Cuando estés listo presiona 'Continuar'.",
+                "📝 Ahora vamos a solicitar los medicamentos uno por uno.\n"
+                "💊 Por cada medicamento, primero te pediremos que escribas la primera letra del nombre, "
+                "y luego te pediremos la cantidad que necesitas.\n"
+                "⚠️ Por favor, no escribas la cantidad todavía. Cuando estés listo para continuar, presiona el botón 'Continuar'.",
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton("Continuar ▶️"), KeyboardButton("Cancelar ❌")]],
                     one_time_keyboard=True,
-                    selective=True
+                    selective=True,
                 )
             )
+
             return
 
         # -------------- Empezar a describir medicamentos --------------
@@ -649,8 +679,11 @@ class BotController:
             if "continuar" in text_lower:
                 session = self.__update_session(telegram_id, self.STEP_REQ_MED_FIST_LETTER, {})
                 await update.message.reply_text(
-                    "🔤 Escribe la primera letra del medicamento 1 que necesitas (ej: 'A' para Acetaminofén).",
-                    reply_markup=ForceReply(selective=True)
+                    "🔤 Por favor, escribe la <b> primera letra </b> del medicamento <b>1</b> que necesitas solicitar." 
+                    "Por ejemplo, si buscas 'Acetaminofén', escribe <b>A</b> \n\n"
+                    "💡 Esto nos ayudará a mostrarte los medicamentos disponibles.",
+                    reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML"
                 )
                 return
 
@@ -682,7 +715,11 @@ class BotController:
 
             meds_text = self.get_available_medications(first_letter)
             if not meds_text:
-                await update.message.reply_text(f"No se encontraron medicamentos que comiencen con '{first_letter}'. Prueba otra letra.", reply_markup=ForceReply(selective=True))
+                await update.message.reply_text(
+                    f"😕 No se encontraron medicamentos que comiencen con '{first_letter}'.\n'." 
+                    "🔄 Por favor, intenta con otra letra o revisa si escribiste correctamente.", 
+                    reply_markup=ForceReply(selective=True)
+                )
                 return
 
             session = self.__update_session(telegram_id, self.STEP_REQ_MED_LIST_CHOSEN, {"first_letter": first_letter})
@@ -715,7 +752,7 @@ class BotController:
             await update.message.reply_text("¿Cuántas unidades de este medicamento necesitas?", reply_markup=ForceReply(selective=True))
             return
 
-        # -------------- Cantidad para medicamento seleccionado --------------
+        # -------------- Quantity  --------------
         if step == self.STEP_REQ_MED_QUANTITY:
             quantity_text = text
             if not quantity_text.isdigit():
@@ -745,65 +782,118 @@ class BotController:
                 else:
                     # pedir foto final
                     await update.message.reply_text(
-                        "✅ Ya registramos todos los medicamentos. Por favor sube la foto o PDF de la receta para completar.",
-                        reply_markup=ForceReply(selective=True)
+                        "✅ ¡Listo! Ya hemos registrado todos los medicamentos que solicitaste.\n"
+                        "📸 Ahora, por favor <b>sube una foto o PDF de la receta médica</b> para completar tu solicitud.\n\n"
+                        "🩺💊 Este paso es <b>obligatorio</b> para poder procesar tu solicitud.",
+                        reply_markup=ForceReply(selective=True),
+                        parse_mode="HTML",
                     )
                     return
             else:
                 await update.message.reply_text("Hubo un error al crear el detalle. Intenta de nuevo más tarde.", reply_markup=ForceReply(selective=True))
                 return
 
-        # -------------- Subida de foto (final) --------------
-        if step == self.STEP_REQ_PHOTO or step == self.STEP_END:
+
+        # -------------- Subida de foto --------------
+        if step == self.STEP_REQ_PHOTO or step == self.STEP_REQ_MORE_PHOTOS or step == self.STEP_END:
             solicitud_obj = session["session_data"].get("solicitud_obj")
             photo_path_tmp = None
 
-            # Document
-            if update.message.document:
-                doc = update.message.document
-                photo_file = await doc.get_file()
-                ext = os.path.splitext(doc.file_name)[1] or ".jpg"
-                photo_dir = f"{settings.BASE_DIR}/photos"
-                os.makedirs(photo_dir, exist_ok=True)
-                photo_path_tmp = f"{photo_dir}/{doc.file_unique_id}{ext}"
-                await photo_file.download_to_drive(photo_path_tmp)
+            # --- Obtener texto seguro ---
+            text = update.message.text if update.message.text else ""
+            text_lower = text.strip().lower()
 
-            # Photo
-            elif update.message.photo:
-                photo = update.message.photo[-1]
-                photo_file = await photo.get_file()
-                photo_dir = f"{settings.BASE_DIR}/photos"
-                os.makedirs(photo_dir, exist_ok=True)
-                photo_path_tmp = f"{photo_dir}/{photo.file_unique_id}.jpg"
-                await photo_file.download_to_drive(photo_path_tmp)
+            # --- 1) Si viene un archivo (documento o foto) ---
+            if update.message.document or update.message.photo:
+                try:
+                    # Documento
+                    if update.message.document:
+                        doc = update.message.document
+                        photo_file = await doc.get_file()
+                        ext = os.path.splitext(doc.file_name)[1] or ".jpg"
+                        photo_dir = f"{settings.BASE_DIR}/photos"
+                        os.makedirs(photo_dir, exist_ok=True)
+                        photo_path_tmp = f"{photo_dir}/{doc.file_unique_id}{ext}"
+                        await photo_file.download_to_drive(photo_path_tmp)
 
-            else:
-                # No file received
-                await update.message.reply_text("Por favor sube una foto o PDF de la receta médica.", reply_markup=ForceReply(selective=True))
+                    # Foto
+                    elif update.message.photo:
+                        photo = update.message.photo[-1]
+                        photo_file = await photo.get_file()
+                        photo_dir = f"{settings.BASE_DIR}/photos"
+                        os.makedirs(photo_dir, exist_ok=True)
+                        photo_path_tmp = f"{photo_dir}/{photo.file_unique_id}.jpg"
+                        await photo_file.download_to_drive(photo_path_tmp)
+
+                    # Guardar en la base de datos
+                    if solicitud_obj and photo_path_tmp:
+                        try:
+                            self.save_photo_to_request(telegram_id, solicitud_obj, photo_path_tmp)
+                        except Exception as e:
+                            logger.error(f"Error guardando foto para solicitud: {e}")
+
+                        # Preguntar si desea subir otro archivo
+                        session = self.__update_session(telegram_id, self.STEP_REQ_MORE_PHOTOS, session["session_data"])
+                        await update.message.reply_text(
+                            "📸 Archivo recibido correctamente.\n¿Deseas subir otra imagen/PDF de la fórmula médica?",
+                            reply_markup=ReplyKeyboardMarkup(
+                                [[KeyboardButton("Sí, añadir otro ✅ "), KeyboardButton("No, he terminado ❌")]],
+                                one_time_keyboard=True,
+                                selective=True
+                            )
+                        )
+                        return
+                    else:
+                        logger.error(f"No hay solicitud activa o ruta inválida: solicitud={solicitud_obj}, path={photo_path_tmp}")
+                        await update.message.reply_text("❌ No se pudo asociar el archivo a la solicitud. Intenta nuevamente.")
+                        return
+
+                except Exception as e:
+                    logger.exception(f"Error descargando o guardando archivo para usuario {telegram_id}: {e}")
+                    await update.message.reply_text("⚠️ Ocurrió un error guardando el archivo. Intenta de nuevo, por favor.")
+                    return
+
+            # --- 2) Si viene texto (respuesta al teclado) ---
+            elif text_lower:
+                # Usuario quiere subir otro archivo
+                if "si" in text_lower or ("añadir" in text_lower and "otro" in text_lower):
+                    session = self.__update_session(telegram_id, self.STEP_REQ_PHOTO, session["session_data"])
+                    await update.message.reply_text(
+                        "📄 Por favor, sube la siguiente imagen o PDF de la fórmula médica.",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                    return
+
+                # Usuario no desea subir más archivos
+                if "no" in text_lower or "termin" in text_lower:
+                    documento = session.get("documento")
+                    self.__end_session(telegram_id, documento, "Flujo completado")
+                    await update.message.reply_text(
+                        "✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada. Te notificaremos cuando esté lista.",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                    return
+
+                # Respuesta inválida
+                await update.message.reply_text(
+                    "Por favor selecciona una opción válida (Sí o No) o sube una imagen/PDF.",
+                    reply_markup=ReplyKeyboardMarkup(
+                        [[KeyboardButton("Sí, añadir otro"), KeyboardButton("No, he terminado")]],
+                        one_time_keyboard=True,
+                        selective=True,
+                        resize_keyboard=True
+                    )
+                )
                 return
 
-            # Guardar archivo asociado a la solicitud (si existe)
-            if solicitud_obj and photo_path_tmp:
-                try:
-                    self.save_photo_to_request(telegram_id, solicitud_obj, photo_path_tmp)
-                except Exception as e:
-                    logger.error(f"Error guardando foto para solicitud: {e}")
+            # --- 3) Ni archivo ni texto: pedir archivo ---
+            else:
+                await update.message.reply_text(
+                    "Por favor sube una foto o PDF de la receta médica.",
+                    reply_markup=ForceReply(selective=True)
+                )
+                return
 
-            # Finalizar sesión exitosamente
-            documento = session.get("documento")
-            self.__end_session(telegram_id, documento, "Flujo completado")
-            await update.message.reply_text(
-                "✅ ¡Gracias! Hemos recibido tu foto/PDF y tu solicitud fue registrada. Te notificaremos cuando esté lista."
-            )
-            return
-
-        if step == self.STEP_REQ_INFO_REQUESTS:
-            # mostrar info y luego cerrar o volver a menu
-            info = self.get_request_info(session, telegram_id)
-            await update.message.reply_html(info, reply_markup=ReplyKeyboardMarkup([[KeyboardButton("Volver al menú")]], one_time_keyboard=True, resize_keyboard=True, selective=True))
-            # dejar en KNOWN_USER para siguientes pasos
-            self.__update_session(telegram_id, self.STEP_KNOWN_USER, {})
-            return
 
         # -------------- Si llegamos aquí: paso inesperado --------------
         logger.error(f"[{telegram_id}] Unexpected step in session: {step}")

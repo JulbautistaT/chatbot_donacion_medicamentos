@@ -67,7 +67,7 @@ class BotController:
                 "is_cancelled": False,
                 "is_error": False,
                 "error_message": None,
-                "last_activity": None,
+                "last_activity": datetime.now(),
             }
             self.__sessions.append(session)
         return session
@@ -91,11 +91,16 @@ class BotController:
             logger.warning(f"No session found to update last_activity for telegram={telegram_id}")
 
     def __is_session_expired(self, telegram_id, hours=12):
-        """Check if the session has expired due to inactivity (default 12 hours)."""
+        """Check if the session has expired due to inactivity"""
         session = self.__find_active_session_for_telegram(telegram_id)
         if session and session.get("last_activity"):
             elapsed = datetime.now() - session["last_activity"]
-            if elapsed.total_seconds() > hours * 3600:
+            elapsed_seconds = elapsed.total_seconds()
+            
+            logger.info(f"[{telegram_id}] Verificando expiración: {elapsed_seconds:.2f} segundos transcurridos (límite: {hours * 3600:.2f})")
+            
+            if elapsed_seconds > hours * 3600:
+                logger.info(f"[{telegram_id}] ⏰ Sesión EXPIRADA - cerrando...")
                 self.__end_session(telegram_id, error_message="Sesión cerrada por inactividad")
                 return True
         return False
@@ -215,10 +220,10 @@ class BotController:
             # Si el usuario ya ingresó el documento, lo asignamos
             if "documento" in session_data and session_data["documento"]:
                 session["documento"] = session_data["documento"]
-        session["last_activity"] = datetime.now()
+        
         return session
 
-    def __end_session(self, telegram_id, documento=None, motivo=None):
+    def __end_session(self, telegram_id, documento=None, error_message=None):
         """Finaliza y elimina una sesión activa."""
         session = next(
             (s for s in self.__sessions 
@@ -235,6 +240,7 @@ class BotController:
             session["is_error"] = False
             session["error_message"] = None
             session["last_activity"] = None
+            logger.info(f"[{telegram_id}] Sesión finalizada. Reason: {error_message or 'Usuario cerró sesión'}")
 
 
     def get_request_info(self, session, telegram_id) -> str:
@@ -313,7 +319,7 @@ class BotController:
         session = self.__find_active_session_for_telegram(telegram_id)
         documento = session.get("session_data", {}).get("documento") if session else None
 
-        self.__end_session(telegram_id, documento, motivo="Sesión finalizada por el usuario con /salir")
+        self.__end_session(telegram_id, documento, error_message="Sesión finalizada por el usuario con /salir")
 
         await update.message.reply_text(
             "✅ Tu sesión ha sido cerrada correctamente.\n"
@@ -332,7 +338,24 @@ class BotController:
         if not session:
             await update.message.reply_text("⚠️ No tienes ninguna sesión activa. Usa /iniciar para comenzar.")
             return
+        
+        if session.get("last_activity"):
+            elapsed = datetime.now() - session["last_activity"]
+            logger.info(f"[{telegram_id}] DEBUG - last_activity: {session['last_activity']}, elapsed: {elapsed.total_seconds():.2f}s")
+    
+        
+        if self.__is_session_expired(telegram_id, hours=12):
+            await update.message.reply_text(
+                "⏰ Tu sesión ha expirado por inactividad.\n" 
+                "Por favor, inicia una nueva sesión con /iniciar."
+                )
+            return
 
+        self.__update_last_activity(telegram_id)
+        
+        logger.info(f"[{telegram_id}] DEBUG - last_activity actualizado a: {session['last_activity']}")
+
+        
         step = session.get("step")
 
         # -------------------------------
@@ -811,6 +834,7 @@ class BotController:
         session["is_active"] = True
         session["is_completed"] = False
         session["is_cancelled"] = False
+        session["last_activity"] = datetime.now()
         session["session_data"] = {
             "documento": None,
             "nombre": None,

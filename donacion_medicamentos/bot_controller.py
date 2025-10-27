@@ -1,13 +1,16 @@
 import logging
 import os
+import re
 from django.conf import settings
 from django.core import files as django_files
 from django.db.models import Count
 from pathlib import Path
 from stock import models as stock_models
 from telegram import ForceReply, Update, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackContext
 from datetime import datetime
+#import pytesseract 
+#from PyPDF2 import PdfReader
 
 # Enable logging
 logging.basicConfig(
@@ -54,7 +57,7 @@ class BotController:
         if not session:
             session = {
                 "telegram_id": telegram_id,
-                "documento": documento,  # aquí guardamos el doc si lo pasan
+                "documento": documento, 
                 "session_data": {
                     "documento": documento,
                     "nombre": None,
@@ -108,12 +111,9 @@ class BotController:
     
 
     def get_user(self, telegram_id):
-        """Retrieve the user from the database by Telegram ID."""
-        try:
-            solicitante_obj = stock_models.Solicitante.objects.get(telegram_id=str(telegram_id))
-            return solicitante_obj
-        except stock_models.Solicitante.DoesNotExist:
-            return None
+        """Retrieve the user(s) from the database by Telegram ID."""
+        qs = stock_models.Solicitante.objects.filter(telegram_id=str(telegram_id))
+        return list(qs) 
         
     def get_user_by_document(self, document):
         """Retrieve the user from the database by document number."""
@@ -207,7 +207,9 @@ class BotController:
         logger.info(f"Detail request created for telegram {telegram_id} with medication ID {selected_medication_id} and quantity {quantity}.")
         return detalle_solicitud_obj
 
-
+    #def __extact_text_from_photo():
+    #   pass
+        
 
     def __update_session(self, telegram_id, step, session_data):
         session = self.__find_active_session_for_telegram(telegram_id)
@@ -389,23 +391,32 @@ class BotController:
 
             logger.info(f"[{telegram_id}] Documento recibido: {document_number}")
 
-
-            solicitante_obj = self.get_user_by_document(document_number)
-            if solicitante_obj:
-                # Usuario existente: cargar datos y pedir confirmación
+            
+            # Verificar si ya hay un usuario con este Telegram ID y documento
+            user_list = self.get_user(telegram_id)  # lista de usuarios del telegram_id
+            user_by_document = self.get_user_by_document(document_number) 
+            
+            user_match = None
+            for u in user_list:
+                if user_by_document and u.id == user_by_document.id:
+                    user_match = u
+                    break
+            # Caso 1: El usuario ya existe con este telegram_id 
+            if user_match:
+                # Usuario existente con mismo telegram_id y documento
                 session = self.__update_session(telegram_id, self.STEP_KNOWN_USER, {
-                    "documento": solicitante_obj.documento,
-                    "nombre": solicitante_obj.nombre,
-                    "direccion_beneficiario": solicitante_obj.direccion_beneficiario,
-                    "edad": solicitante_obj.edad,
+                    "documento": user_match.documento,
+                    "nombre": user_match.nombre,
+                    "direccion_beneficiario": user_match.direccion_beneficiario,
+                    "edad": user_match.edad,
                 })
-               
-                first_name = solicitante_obj.nombre.split()[0] if solicitante_obj.nombre else "Usuario"
+                
+                first_name = user_match.nombre.split()[0] if user_match.nombre else "Usuario"
                 await update.message.reply_html(
-                    f"👋 ¡Hola {first_name}! He encontrado un registro con el documento {document_number}.\n"
+                    f"👋 ¡Hola {first_name}! He verificado tu documento {document_number}.\n"
                     "¿Los siguientes datos están correctos?. \n"
-                    f"Edad: {solicitante_obj.edad}.\n"
-                    f"Dirección: {solicitante_obj.direccion_beneficiario}.\n"
+                    f"Edad: {user_match.edad}.\n"
+                    f"Dirección: {user_match.direccion_beneficiario}.\n"
                     "Si todo está correcto, presiona <b>Sí, correcto ✅</b> para continuar.\n",
                     reply_markup=ReplyKeyboardMarkup(
                         [[KeyboardButton("Sí, correcto ✅"), KeyboardButton("No, corregir ✏️")]],
@@ -413,6 +424,16 @@ class BotController:
                         selective=True
                     )
                 )
+                return
+            
+            #Caso 2: El usuario existe, pero no coincide con este Telegram ID
+            elif user_by_document:
+                await update.message.reply_text(
+                    "⚠️ Este documento ya está registrado con otro usuario. "
+                    "Revisa el número ingresado."
+                )
+                return             
+
             else:
                 # No existe: pedimos nombre (creación de nuevo usuario)
                 session = self.__update_session(telegram_id, self.STEP_REQ_NAME, {"documento": document_number})
@@ -908,11 +929,12 @@ class BotController:
         """Muestra mensaje de bienvenida cuando se usa /iniciar."""
         logger.info("Welcome user command received.")
 
+        
         telegram_id = update.effective_user.id
 
         # Verificar si ya hay una sesión activa para este telegram_id
         session = self.__find_active_session_for_telegram(telegram_id)
-        if session:
+        if session and session.get("is_active", False):
             await update.message.reply_text(
                 "👋 Ya tienes una sesión activa. Por favor, completa la sesión actual o usa /salir para cerrarla."
             )
@@ -946,16 +968,57 @@ class BotController:
                 selective=True,
             ),
         )
+        
+        
+    async def handle_plain_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        msg = update.effective_message
+        if not msg or not msg.text:
+            return
 
+        text = msg.text.strip()
+        low = text.lower()
+        telegram_id = update.effective_user.id
+        session = self.__find_active_session_for_telegram(telegram_id)  # misma fuente que usas en welcome [file:46]
+        is_active = bool(session and session.get("is_active", False))
 
+        # salir/cerrar siempre cierra
+        if re.search(r'\b(salir|cerrar)\b', low, re.IGNORECASE):
+            await self.end_session_command(update, context)
+            return
+
+        # Saludos solo si NO hay sesión activa
+        if re.search(r'\b(hola|hi|buenas|buenos\s+días|buenas\s+tardes|buenas\s+noches)\b', low, re.IGNORECASE):
+            if not is_active:
+                await self.wellcome_user(update, context)
+            else:
+                # si quieres, reitera la instrucción
+                await msg.reply_text("👋 Ya tienes una sesión activa. Completa la sesión o usa /salir para cerrarla.")
+            return
+
+        # Todo lo demás sigue el flujo
+        await self.request_session_step(update, context)
     def run(self):
         """Start the bot."""
-        # Starts the bot and registers handlers
+
+        # CommandHandlers para comandos con /
         self.__application.add_handler(CommandHandler("iniciar", self.wellcome_user))
         self.__application.add_handler(CommandHandler("salir", self.end_session_command))
+        fin_pattern = re.compile(r'\b(salir|cerrar)\b', flags=re.IGNORECASE)  # flags por re.compile en v20 [file:46]
+        self.__application.add_handler(
+            MessageHandler(filters.TEXT & filters.Regex(fin_pattern), self.handle_plain_text)
+        )  
 
-        # Register the message handler for the request session step
-        self.__application.add_handler(MessageHandler(filters.TEXT | filters.Document.ALL | filters.PHOTO, self.request_session_step))
-
-        # Start the Bot
+        
+        saludos_pattern = re.compile(
+            r'\b(hola|hi|buenas|buenos\s+días|buenas\s+tardes|buenas\s+noches)\b',
+            flags=re.IGNORECASE
+        ) 
+        self.__application.add_handler(
+            MessageHandler(filters.TEXT & filters.Regex(saludos_pattern), self.handle_plain_text)
+        ) 
+       
+        self.__application.add_handler(
+            MessageHandler(filters.TEXT | filters.Document.ALL | filters.PHOTO, self.request_session_step)
+        )  
+        
         self.__application.run_polling(allowed_updates=Update.ALL_TYPES)

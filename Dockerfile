@@ -33,6 +33,8 @@ RUN apt-get update -y && apt-get install -y jq \
     libnss3 \
     libnspr4 \
     xvfb \
+    tesseract-ocr \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -61,6 +63,8 @@ COPY . .
 ADD requirements.txt $HOME/requirements.txt
 
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+
+
 
 CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24"]

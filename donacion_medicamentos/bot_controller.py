@@ -1,6 +1,4 @@
-import logging
-import os
-import re
+import logging, os, re, asyncio
 from django.conf import settings
 from django.core import files as django_files
 from django.db.models import Count
@@ -378,11 +376,11 @@ class BotController:
                 parse_mode="HTML",
             )
             return
-
+            
         # -------------- Documento --------------
         if step == self.STEP_REQ_DOCUMENT:
             document_number = text
-            if not document_number:
+            if not document_number.isdigit():
                 await update.message.reply_text(
                     "Por favor escribe un número de documento válido.",
                     reply_markup=ForceReply(selective=True),
@@ -401,6 +399,7 @@ class BotController:
                 if user_by_document and u.id == user_by_document.id:
                     user_match = u
                     break
+                
             # Caso 1: El usuario ya existe con este telegram_id 
             if user_match:
                 # Usuario existente con mismo telegram_id y documento
@@ -818,8 +817,11 @@ class BotController:
         # -------------- Subida de foto --------------
         if step == self.STEP_REQ_PHOTO or step == self.STEP_REQ_MORE_PHOTOS or step == self.STEP_END:
             solicitud_obj = session["session_data"].get("solicitud_obj")
-            photo_path_tmp = None
-
+            data = session.get("session_data", {})
+            data.setdefault("photos_uploaded", 0)
+            data.setdefault("last_photo_time", None)
+            
+            
             # --- Obtener texto seguro ---
             text = update.message.text if update.message.text else ""
             text_lower = text.strip().lower()
@@ -850,23 +852,46 @@ class BotController:
                     if solicitud_obj and photo_path_tmp:
                         try:
                             self.save_photo_to_request(telegram_id, solicitud_obj, photo_path_tmp)
+                            data["photos_uploaded"] += 1
+                            data["lasta_photo_time"] = datetime.now().timestamp()
                         except Exception as e:
                             logger.error(f"Error guardando foto para solicitud: {e}")
+                            await update.message.reply_text(
+                                "❌ No se pudo asociar el archivo a la solicitud. Intenta nuevamente."
+                                )
+                            return
 
-                        # Preguntar si desea subir otro archivo
-                        session = self.__update_session(telegram_id, self.STEP_REQ_MORE_PHOTOS, session["session_data"])
-                        await update.message.reply_text(
-                            "📸 Archivo recibido correctamente.\n¿Deseas subir otra imagen/PDF de la fórmula médica?",
-                            reply_markup=ReplyKeyboardMarkup(
-                                [[KeyboardButton("Sí, añadir otro ✅ "), KeyboardButton("No, he terminado ❌")]],
-                                one_time_keyboard=True,
-                                selective=True
-                            )
-                        )
-                        return
-                    else:
-                        logger.error(f"No hay solicitud activa o ruta inválida: solicitud={solicitud_obj}, path={photo_path_tmp}")
-                        await update.message.reply_text("❌ No se pudo asociar el archivo a la solicitud. Intenta nuevamente.")
+                        self.__update_session(telegram_id, self.STEP_REQ_MORE_PHOTOS, data)
+
+                        # --- Control de ráfaga de imágenes ---
+                        if not hasattr(self, "photo_buffer"):
+                            self.photo_buffer = {}
+
+                        # Si ya hay una tarea pendiente, cancelarla
+                        if telegram_id in self.photo_buffer and "task" in self.photo_buffer[telegram_id]:
+                            self.photo_buffer[telegram_id]["task"].cancel()
+
+                        async def send_confirmation():
+                            try:
+                                await asyncio.sleep(2.5)  # Tiempo de espera para finalizar la rafaga
+                                await update.message.reply_text(
+                                    f"📸 Se han recibido {data['photos_uploaded']} archivo(s) correctamente.\n"
+                                    "¿Deseas subir otra imagen/PDF de la fórmula médica?",
+                                    reply_markup=ReplyKeyboardMarkup(
+                                        [
+                                            [KeyboardButton("Sí, añadir otro ✅"), KeyboardButton("No, he terminado ❌")]
+                                        ],
+                                        one_time_keyboard=True,
+                                        selective=True
+                                    )
+                                )
+                                del self.photo_buffer[telegram_id]
+                            except asyncio.CancelledError:
+                                pass  # llega otra foto antes del tiempo → reinicia temporizador
+
+                        task = asyncio.create_task(send_confirmation())
+                        self.photo_buffer[telegram_id] = {"task": task}
+
                         return
 
                 except Exception as e:
@@ -886,7 +911,7 @@ class BotController:
                     return
 
                 # Usuario no desea subir más archivos
-                if "no" in text_lower or "termin" in text_lower:
+                if "no" in text_lower or "termina" in text_lower:
                     documento = session.get("documento")
                     self.__end_session(telegram_id, documento, "Flujo completado")
                     await update.message.reply_text(
@@ -978,16 +1003,17 @@ class BotController:
         text = msg.text.strip()
         low = text.lower()
         telegram_id = update.effective_user.id
-        session = self.__find_active_session_for_telegram(telegram_id)  # misma fuente que usas en welcome [file:46]
+        session = self.__find_active_session_for_telegram(telegram_id)  
         is_active = bool(session and session.get("is_active", False))
 
-        # salir/cerrar siempre cierra
+        
         if re.search(r'\b(salir|cerrar)\b', low, re.IGNORECASE):
             await self.end_session_command(update, context)
             return
 
         # Saludos solo si NO hay sesión activa
-        if re.search(r'\b(hola|hi|buenas|buenos\s+días|buenas\s+tardes|buenas\s+noches)\b', low, re.IGNORECASE):
+        if re.search(r'\b(hola|hi|buenas|buenos\s+días|buenos\s+dias|buenas\s+tardes|buenas\s+noches|buen dia)\b', 
+                     low, re.IGNORECASE):
             if not is_active:
                 await self.wellcome_user(update, context)
             else:
@@ -1003,14 +1029,13 @@ class BotController:
         # CommandHandlers para comandos con /
         self.__application.add_handler(CommandHandler("iniciar", self.wellcome_user))
         self.__application.add_handler(CommandHandler("salir", self.end_session_command))
-        fin_pattern = re.compile(r'\b(salir|cerrar)\b', flags=re.IGNORECASE)  # flags por re.compile en v20 [file:46]
+        fin_pattern = re.compile(r'\b(salir|cerrar)\b', flags=re.IGNORECASE)  
         self.__application.add_handler(
             MessageHandler(filters.TEXT & filters.Regex(fin_pattern), self.handle_plain_text)
         )  
 
-        
         saludos_pattern = re.compile(
-            r'\b(hola|hi|buenas|buenos\s+días|buenas\s+tardes|buenas\s+noches)\b',
+            r'\b(hola|hi|buenas|buenos\s+días|buenos\s+dias|buenas\s+tardes|buenas\s+noches|buen dia)\b',
             flags=re.IGNORECASE
         ) 
         self.__application.add_handler(

@@ -782,8 +782,30 @@ class BotController:
             if quantity <= 0:
                 await update.message.reply_text("La cantidad debe ser mayor que cero.", reply_markup=ForceReply(selective=True))
                 return
+            
 
             selected_med_id = session["session_data"].get("selected_medication_id")
+            
+            # Consultar la cantidad disponible del medicamento solicitado
+            try:
+                medication = stock_models.MedicamentoDonado.objects.get(id= selected_med_id)
+                quantity_data = medication.cantidad
+            except stock_models.MedicamentoDonado.DoesNotExist:
+                await update.message.reply_text("Error: el medicamento no existe o fue eliminado",
+                                                 reply_markup=ForceReply(selective=True))
+                return
+            
+            if quantity > quantity_data:
+                
+                
+                await update.message.reply_text(
+                    f"No hay la suficiente cantidad en unidades del medicamento seleccionado ❌ \n\n"
+                    f"Solo hay {quantity_data} unidades, por favor ingresa una cantidad dentro del rango",
+                    reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML"
+                )
+                return
+                
             # actualizar sesión y crear detalle
             session = self.__update_session(telegram_id, self.STEP_REQ_PHOTO, {"selected_medication_id": selected_med_id, "quantity": quantity})
             detalle = self.create_detail_request(telegram_id, session)
@@ -879,7 +901,7 @@ class BotController:
                                     "¿Deseas subir otra imagen/PDF de la fórmula médica?",
                                     reply_markup=ReplyKeyboardMarkup(
                                         [
-                                            [KeyboardButton("Sí, añadir otro ✅"), KeyboardButton("No, he terminado ❌")]
+                                            [KeyboardButton("Sí, añadir otro ✅"), KeyboardButton("No ❌")]
                                         ],
                                         one_time_keyboard=True,
                                         selective=True

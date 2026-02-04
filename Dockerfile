@@ -9,33 +9,40 @@ ENV LANGUAGE=es_ES.UTF-8
 
 
 # install jq
-RUN apt-get update -y && apt-get install -y jq \
-    firefox-esr \
-    wget \
+RUN apt-get update -y && apt-get install -y \
     curl \
-    unzip \
-    libgtk-3-0 \
+    firefox-esr \
+    jq \
+    libasound2 \
     libdbus-glib-1-2 \
-    libxt6 \
-    libxrender1 \
+    libfontconfig1 \
+    libgtk-3-0 \
+    libjpeg-dev \
+    libnspr4 \
+    libnss3 \
+    libpangocairo-1.0-0 \
+    libpangoft2-1.0-0 \
+    libpng-dev \
+    libtiff-dev \
+    libwebp-dev \
     libx11-xcb1 \
     libxcb-shm0 \
     libxcb1 \
     libxcomposite1 \
     libxdamage1 \
-    libxrandr2 \
-    libasound2 \
-    libpangocairo-1.0-0 \
-    libpangoft2-1.0-0 \
-    libfontconfig1 \
     libxinerama1 \
     libxkbcommon0 \
-    libnss3 \
-    libnspr4 \
-    xvfb \
-    tesseract-ocr \
+    libxrandr2 \
+    libxrender1 \
+    libxt6 \
     poppler-utils \
+    tesseract-ocr \
+    unzip \
+    wget \
+    xvfb \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
 
 
 # Install GeckoDriver

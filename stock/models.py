@@ -24,6 +24,7 @@ class DetalleSolicitud(models.Model):
         help_text='Cantidad entregada del medicamento'
     )
 
+
     def clean(self):
         """Validate that there's enough stock available for the cantidad_entregada."""
         super().clean()

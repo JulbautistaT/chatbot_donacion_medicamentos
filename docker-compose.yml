@@ -1,5 +1,6 @@
 x-default-config:
   &x-default-config
+  build: .
   image: '${IMAGE}'
   restart: always
   env_file:

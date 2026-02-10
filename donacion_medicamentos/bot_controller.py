@@ -14,10 +14,12 @@ from stock import models as stock_models
 from telegram import ForceReply, Update, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+import numpy as np
 import pytesseract
 from PyPDF2 import PdfReader
 from pdf2image import convert_from_path
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
+from pathlib import Path
 
 # Configuración de logging
 logging.basicConfig(
@@ -27,7 +29,6 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
-
 
 class SessionSteps:
     """Constantes para los pasos de la sesión"""
@@ -49,69 +50,226 @@ class SessionSteps:
     END = "END"
 
 
+
 class OCRProcessor:
-    """Procesador de OCR para imágenes y PDFs"""
+    """Procesador avanzado de OCR con corrección automática de perspectiva y mejoras"""
 
     @staticmethod
-    def extract_text_from_image(image_path: str) -> Optional[str]:
-        """Extrae texto de una imagen usando Tesseract OCR"""
+    def preprocess_image_opencv(image_path: str) -> np.ndarray:
+        """
+        Pre-procesa imagen usando OpenCV para mejor OCR
+        Incluye: corrección de perspectiva, inclinación y mejoras de contraste
+        """
         try:
-            image = Image.open(image_path)
-            # Configuración para español
-            text = pytesseract.image_to_string(image, lang='spa')
-            logger.info(f"Texto extraído de imagen: {len(text)} caracteres")
-            return text.strip()
+            # Leer imagen
+            img = cv2.imread(image_path)
+            if img is None:
+                logger.error(f"❌ No se pudo leer imagen: {image_path}")
+                return None
+            
+            orig_shape = img.shape
+            logger.info(f"📸 Imagen original: {orig_shape[1]}x{orig_shape[0]}")
+            
+            # Convertir a escala de grises
+            if len(img.shape) == 3:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = img.copy()
+            
+            # Redimensionar si es muy pequeña (mínimo 1500px de ancho)
+            height, width = gray.shape
+            if width < 1500:
+                scale = 1500 / width
+                new_size = (int(width * scale), int(height * scale))
+                gray = cv2.resize(gray, new_size, interpolation=cv2.INTER_CUBIC)
+                logger.info(f"🔍 Redimensionada a {new_size[0]}x{new_size[1]}")
+            
+            # CLAHE: Mejora contraste local (muy efectivo para documentos con sombras)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            enhanced = clahe.apply(gray)
+            
+            # Reducir ruido
+            denoised = cv2.fastNlMeansDenoising(enhanced, None, h=10, templateWindowSize=7, searchWindowSize=21)
+            
+            # Binarización adaptativa (mejor para iluminación irregular)
+            binary = cv2.adaptiveThreshold(
+                denoised,
+                255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                11,
+                2
+            )
+            
+            logger.info("✅ Pre-procesamiento OpenCV completado")
+            return binary
+            
         except Exception as e:
-            logger.error(f"Error en OCR de imagen: {e}")
+            logger.error(f"❌ Error en pre-procesamiento OpenCV: {e}")
             return None
 
     @staticmethod
-    def extract_text_from_pdf(pdf_path: str) -> Optional[str]:
+    def extract_text_from_image(image_path: str) -> str:
+        """Extrae texto de una imagen usando Tesseract OCR con pre-procesamiento mejorado"""
+        try:
+            # Pre-procesar con OpenCV
+            processed_img = OCRProcessor.preprocess_image_opencv(image_path)
+            
+            if processed_img is None:
+                # Fallback: procesamiento básico con PIL
+                logger.warning("⚠️ Usando fallback con PIL")
+                image = Image.open(image_path)
+                
+                # Convertir a escala de grises
+                if image.mode != 'L':
+                    image = image.convert('L')
+                
+                # Redimensionar
+                width, height = image.size
+                if width < 1500:
+                    ratio = 1500 / width
+                    new_size = (int(width * ratio), int(height * ratio))
+                    image = image.resize(new_size, Image.Resampling.LANCZOS)
+                
+                pil_image = image
+            else:
+                # Convertir de OpenCV a PIL
+                pil_image = Image.fromarray(processed_img)
+            
+            # Configuración optimizada de Tesseract
+            # PSM 3 = Automatic page segmentation (mejor para documentos completos)
+            # PSM 6 = Uniform block of text
+            custom_config = r'--oem 3 --psm 3'
+            
+            # Intentar con español
+            try:
+                text = pytesseract.image_to_string(pil_image, lang='spa', config=custom_config)
+                logger.info(f"📝 Texto extraído (español): {len(text)} caracteres")
+            except Exception as e:
+                logger.warning(f"⚠️ Error con español, probando inglés: {e}")
+                text = pytesseract.image_to_string(pil_image, lang='eng', config=custom_config)
+                logger.info(f"📝 Texto extraído (inglés): {len(text)} caracteres")
+            
+            if text:
+                preview = text[:200].replace('\n', ' ')
+                logger.info(f"🔤 Preview: {preview}...")
+            else:
+                logger.warning("⚠️ No se extrajo texto de la imagen")
+            
+            return text.strip()
+            
+        except Exception as e:
+            logger.error(f"❌ Error en OCR de imagen: {e}")
+            logger.exception("Traceback completo:")
+            return None
+
+    @staticmethod
+    def extract_text_from_pdf(pdf_path: str) -> str:
         """Extrae texto de un PDF usando PyPDF2 y OCR si es necesario"""
         try:
+            from PyPDF2 import PdfReader
+            from pdf2image import convert_from_path
+            
             text = ""
             
-            # Intentar extracción directa de texto
+            # Intentar extracción directa
             try:
                 reader = PdfReader(pdf_path)
-                for page in reader.pages:
+                logger.info(f"📄 PDF tiene {len(reader.pages)} página(s)")
+                
+                for i, page in enumerate(reader.pages):
                     page_text = page.extract_text()
                     if page_text:
                         text += page_text + "\n"
+                        logger.info(f"📄 Página {i+1}: {len(page_text)} caracteres extraídos directamente")
             except Exception as e:
-                logger.warning(f"No se pudo extraer texto directamente del PDF: {e}")
+                logger.warning(f"⚠️ No se pudo extraer texto directamente: {e}")
             
-            # Si no hay texto o es muy poco, usar OCR
+            # Si no hay suficiente texto, usar OCR
             if len(text.strip()) < 50:
-                logger.info("Texto insuficiente, usando OCR en PDF...")
-                images = convert_from_path(pdf_path)
+                logger.info("🔄 Texto insuficiente, usando OCR...")
+                
+                images = convert_from_path(pdf_path, dpi=300)
+                logger.info(f"📄 PDF convertido a {len(images)} imagen(es)")
+                
                 for i, image in enumerate(images):
-                    page_text = pytesseract.image_to_string(image, lang='spa')
-                    text += page_text + "\n"
-                    logger.info(f"Página {i+1} procesada con OCR")
+                    # Guardar temporalmente
+                    temp_path = f"/tmp/pdf_page_{i}_{Path(pdf_path).stem}.png"
+                    image.save(temp_path, 'PNG')
+                    
+                    # Extraer texto con OCR
+                    page_text = OCRProcessor.extract_text_from_image(temp_path)
+                    if page_text:
+                        text += page_text + "\n"
+                        logger.info(f"📄 Página {i+1}: {len(page_text)} caracteres (OCR)")
+                    
+                    # Limpiar
+                    try:
+                        import os
+                        os.remove(temp_path)
+                    except:
+                        pass
             
-            logger.info(f"Texto extraído de PDF: {len(text)} caracteres")
+            logger.info(f"📝 Total extraído del PDF: {len(text)} caracteres")
             return text.strip()
+            
         except Exception as e:
-            logger.error(f"Error en extracción de PDF: {e}")
+            logger.error(f"❌ Error en extracción de PDF: {e}")
+            logger.exception("Traceback completo:")
             return None
 
     @staticmethod
-    def extract_text_from_file(file_path: str) -> Optional[str]:
+    def extract_text_from_file(file_path: str) -> str:
         """Extrae texto de un archivo (imagen o PDF)"""
         file_ext = Path(file_path).suffix.lower()
         
+        logger.info(f"📂 Procesando archivo: {file_path} (tipo: {file_ext})")
+        
         if file_ext == '.pdf':
             return OCRProcessor.extract_text_from_pdf(file_path)
-        elif file_ext in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp']:
+        elif file_ext in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.webp']:
             return OCRProcessor.extract_text_from_image(file_path)
         else:
-            logger.warning(f"Formato de archivo no soportado: {file_ext}")
+            logger.warning(f"⚠️ Formato no soportado: {file_ext}")
             return None
+
+    @staticmethod
+    def test_ocr_setup():
+        """Verifica configuración de OCR"""
+        try:
+            # Test Tesseract
+            version = pytesseract.get_tesseract_version()
+            logger.info(f"✅ Tesseract versión: {version}")
+            
+            # Test OpenCV
+            logger.info(f"✅ OpenCV versión: {cv2.__version__}")
+            
+            # Verificar idiomas
+            try:
+                import subprocess
+                result = subprocess.run(['tesseract', '--list-langs'], 
+                                      capture_output=True, text=True, timeout=5)
+                langs = result.stdout
+                logger.info(f"🌍 Idiomas Tesseract disponibles")
+                
+                if 'spa' not in langs:
+                    logger.warning("⚠️ Idioma español (spa) no instalado!")
+                    logger.warning("   Instalar: sudo apt-get install tesseract-ocr-spa")
+                else:
+                    logger.info("✅ Idioma español disponible")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ No se pudo verificar idiomas: {e}")
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error en configuración OCR: {e}")
+            return False
 
 
 class FormulaValidator:
-    """Validador de fórmulas médicas"""
+    """Validador de fórmulas médicas con validación flexible de nombres"""
 
     @staticmethod
     def normalize_text(text: str) -> str:
@@ -127,7 +285,9 @@ class FormulaValidator:
         for old, new in replacements.items():
             text = text.replace(old, new)
         # Eliminar caracteres no alfanuméricos excepto espacios
-        text = re.sub(r'[^a-z0-9\s]', '', text)
+        text = re.sub(r'[^a-z0-9\s]', ' ', text)
+        # Eliminar espacios múltiples
+        text = re.sub(r'\s+', ' ', text)
         return text.strip()
 
     @staticmethod
@@ -136,7 +296,7 @@ class FormulaValidator:
         # Buscar patrones de números de documento (6-10 dígitos)
         patterns = [
             r'\b(\d{6,10})\b',  # Números de 6-10 dígitos
-            r'(?:c\.?c\.?|cedula|documento|identificacion)[:\s]*(\d{6,10})',  # Con palabras clave
+            r'(?:c\.?c\.?|cedula|documento|identificacion|identif)[:\s]*(\d{6,10})',  # Con palabras clave
         ]
         
         found_documents = []
@@ -148,7 +308,108 @@ class FormulaValidator:
                 if 6 <= len(doc) <= 10:
                     found_documents.append(doc)
         
-        return list(set(found_documents))  # Eliminar duplicados
+        unique_docs = list(set(found_documents))
+        logger.info(f"🆔 Documentos encontrados: {unique_docs}")
+        return unique_docs
+
+    @staticmethod
+    def validate_name_flexible(text_normalized: str, expected_name_normalized: str) -> Dict[str, Any]:
+        result = {
+            'matched': False,
+            'matched_words': [],
+            'strategy': None,
+            'confidence': 0.0
+        }
+        
+        # Separar palabras del nombre esperado (filtrar muy cortas)
+        expected_words = [w for w in expected_name_normalized.split() if len(w) >= 3]
+        
+        if not expected_words:
+            logger.warning("⚠️ No hay palabras válidas en el nombre esperado")
+            return result
+        
+        logger.info(f"🔍 Buscando palabras: {expected_words}")
+        
+        # Estrategia 1: Palabras completas en el texto (orden no importa)
+        matched_full = []
+        for word in expected_words:
+            # Buscar palabra completa (rodeada de espacios o inicio/fin)
+            pattern = r'\b' + re.escape(word) + r'\b'
+            if re.search(pattern, text_normalized):
+                matched_full.append(word)
+                logger.info(f"  ✅ '{word}' encontrada (completa)")
+        
+        # Si encontramos al menos 50% de las palabras completas
+        if len(matched_full) >= len(expected_words) * 0.5:
+            result['matched'] = True
+            result['matched_words'] = matched_full
+            result['strategy'] = 'palabras_completas'
+            result['confidence'] = len(matched_full) / len(expected_words)
+            logger.info(f"✅ Nombre validado (palabras completas): {matched_full}")
+            return result
+        
+        # Estrategia 2: Palabras parciales (al menos 4 letras consecutivas)
+        matched_partial = []
+        for word in expected_words:
+            if len(word) >= 4:
+                # Buscar substring de al menos 4 letras
+                if word[:4] in text_normalized or word[-4:] in text_normalized:
+                    matched_partial.append(word)
+                    logger.info(f"  ✅ '{word}' encontrada (parcial)")
+        
+        if len(matched_partial) >= len(expected_words) * 0.5:
+            result['matched'] = True
+            result['matched_words'] = matched_partial
+            result['strategy'] = 'palabras_parciales'
+            result['confidence'] = len(matched_partial) / len(expected_words)
+            logger.info(f"✅ Nombre validado (parcial): {matched_partial}")
+            return result
+        
+        # Estrategia 3: Buscar cada letra del nombre (muy flexible)
+        # Útil cuando OCR detecta el nombre pero con espacios/errores
+        all_letters_name = ''.join(expected_words)  # "juliethbautista"
+        all_letters_text = text_normalized.replace(' ', '')  # Quitar espacios
+        
+        # Contar cuántas letras del nombre están en el texto en orden
+        matched_chars = 0
+        text_idx = 0
+        for char in all_letters_name:
+            # Buscar siguiente ocurrencia de la letra
+            found_idx = all_letters_text.find(char, text_idx)
+            if found_idx != -1:
+                matched_chars += 1
+                text_idx = found_idx + 1
+        
+        char_match_ratio = matched_chars / len(all_letters_name) if all_letters_name else 0
+        
+        if char_match_ratio >= 0.7:  # 70% de las letras en orden
+            result['matched'] = True
+            result['matched_words'] = expected_words
+            result['strategy'] = 'secuencia_letras'
+            result['confidence'] = char_match_ratio
+            logger.info(f"✅ Nombre validado (secuencia letras): {char_match_ratio:.1%}")
+            return result
+        
+        # Estrategia 4: Solo apellidos (común en documentos médicos)
+        # Buscar palabras que empiecen con mayúscula en el texto original
+        apellidos = [w for w in expected_words if len(w) >= 4][-2:]  # Últimas 2 palabras
+        if apellidos:
+            matched_apellidos = [w for w in apellidos if w in text_normalized]
+            if matched_apellidos:
+                result['matched'] = True
+                result['matched_words'] = matched_apellidos
+                result['strategy'] = 'apellidos'
+                result['confidence'] = len(matched_apellidos) / len(apellidos)
+                logger.info(f"✅ Nombre validado (apellidos): {matched_apellidos}")
+                return result
+        
+        # No se pudo validar
+        logger.warning(f"❌ Nombre NO validado. Intentos:")
+        logger.warning(f"   - Palabras completas: {matched_full}")
+        logger.warning(f"   - Palabras parciales: {matched_partial}")
+        logger.warning(f"   - Secuencia letras: {char_match_ratio:.1%}")
+        
+        return result
 
     @staticmethod
     def validate_formula(
@@ -165,54 +426,74 @@ class FormulaValidator:
                 - document_match: bool
                 - name_match: bool
                 - errors: list
+                - debug_info: dict (opcional)
         """
         result = {
             'is_valid': False,
             'document_match': False,
             'name_match': False,
-            'errors': []
+            'errors': [],
+            'debug_info': {}
         }
 
         if not text or len(text) < 50:
             result['errors'].append("Texto insuficiente o no se pudo leer el documento")
+            logger.warning(f"⚠️ Validación fallida: texto muy corto ({len(text)} caracteres)")
             return result
 
         # Normalizar textos para comparación
         text_normalized = FormulaValidator.normalize_text(text)
         expected_name_normalized = FormulaValidator.normalize_text(expected_name)
 
-        # Extraer información
-        found_documents = FormulaValidator.extract_document_number(text)
+        logger.info(f"🔍 Validando contra documento: {expected_document}")
+        logger.info(f"🔍 Validando contra nombre: {expected_name}")
+        
+        # Guardar info de debug
+        result['debug_info']['text_length'] = len(text)
+        result['debug_info']['text_preview'] = text[:300]
 
-        # Validar documento
+        # ===== VALIDAR DOCUMENTO =====
+        found_documents = FormulaValidator.extract_document_number(text)
+        
         if expected_document in found_documents:
             result['document_match'] = True
+            logger.info(f"✅ Documento {expected_document} ENCONTRADO")
         else:
             result['errors'].append("documento")
+            logger.warning(f"❌ Documento {expected_document} NO encontrado")
+            logger.warning(f"   Encontrados: {found_documents}")
+        
+        result['debug_info']['found_documents'] = found_documents
 
-        # Validar nombre - buscar cada palabra del nombre en el texto completo
-        name_words = [word for word in expected_name_normalized.split() if len(word) > 2]
-        if name_words:
-            # Contar cuántas palabras del nombre se encuentran en el texto
-            matches = sum(1 for word in name_words if word in text_normalized)
-            # Si encontramos al menos el 60% de las palabras del nombre
-            if matches >= len(name_words) * 0.6:
-                result['name_match'] = True
-            else:
-                result['errors'].append("nombre")
+        # ===== VALIDAR NOMBRE (FLEXIBLE) =====
+        name_validation = FormulaValidator.validate_name_flexible(
+            text_normalized, 
+            expected_name_normalized
+        )
+        
+        result['name_match'] = name_validation['matched']
+        result['debug_info']['name_validation'] = name_validation
+        
+        if result['name_match']:
+            logger.info(
+                f"✅ Nombre verificado con estrategia '{name_validation['strategy']}' "
+                f"(confianza: {name_validation['confidence']:.1%})"
+            )
         else:
             result['errors'].append("nombre")
+            logger.warning("❌ Nombre NO verificado con ninguna estrategia")
 
+        # Resultado final
         result['is_valid'] = result['document_match'] and result['name_match']
 
         logger.info(
-            f"Validación de fórmula: "
+            f"📊 Resultado validación: "
             f"documento={result['document_match']}, "
-            f"nombre={result['name_match']}"
+            f"nombre={result['name_match']}, "
+            f"válido={result['is_valid']}"
         )
 
         return result
-
 
 class BotController:
     """Controlador principal del bot de Telegram para gestión de solicitudes de medicamentos"""
@@ -224,8 +505,14 @@ class BotController:
     def __init__(self):
         self.__application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
         self.__sessions: List[Dict[str, Any]] = []
+        
+        # Verificar configuración de OCR al iniciar
+        logger.info("🔧 Verificando configuración de OCR...")
+        OCRProcessor.test_ocr_setup()
 
     # ========== GESTIÓN DE SESIONES ==========
+    # [El resto del código permanece igual que en la versión anterior]
+    # Solo cambia la clase OCRProcessor
 
     def __create_session(self, telegram_id: int, documento: Optional[str] = None) -> Dict[str, Any]:
         """Crea una nueva sesión para el usuario"""
@@ -240,7 +527,7 @@ class BotController:
                 "medication_count": 0,
                 "photos_uploaded": 0,
                 "ocr_attempts": 0,
-                "pending_files": [],  # Archivos pendientes de procesar
+                "pending_files": [],
             },
             "step": SessionSteps.NEW_USER,
             "is_active": True,
@@ -253,6 +540,7 @@ class BotController:
         self.__sessions.append(session)
         logger.info(f"[{telegram_id}] Nueva sesión creada")
         return session
+
 
     def __find_active_session(self, telegram_id: int) -> Optional[Dict[str, Any]]:
         """Encuentra la sesión activa de un usuario"""
@@ -452,7 +740,11 @@ class BotController:
                 f"está en estado {emoji} <b>{ultima.estado.capitalize()}</b>."
             )
 
+        
+
         return request_info
+    
+    
 
     # ========== GESTIÓN DE MEDICAMENTOS ==========
 
@@ -502,12 +794,6 @@ class BotController:
         update: Update,
         solicitud_obj: stock_models.Solicitud
     ) -> Optional[Tuple[stock_models.Formula, str]]:
-        """
-        Guarda archivo (foto o documento) en la solicitud
-        
-        Returns:
-            Tupla de (Formula object, file_path) o None si falla
-        """
         try:
             photo_path_tmp = None
 

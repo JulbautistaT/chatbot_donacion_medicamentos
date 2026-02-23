@@ -44,6 +44,7 @@ INSTALLED_APPS += [
 # OWN APPS
 INSTALLED_APPS += [
     'stock',
+    'politicas'
 ]
 
 
@@ -62,9 +63,7 @@ ROOT_URLCONF = 'donacion_medicamentos.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [
-            os.path.join(BASE_DIR, 'templates'),
-        ],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -162,4 +161,3 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_RESULT_EXTENDED = True
-

@@ -1,0 +1,7 @@
+<header class="header">
+    <h1>{{ politica.titulo }}</h1>
+    <p class="subtitle">Versión {{ politica.version }} - {{ politica.fecha_vigencia }}</p>
+</header>
+<main>
+    {{ politica.contenido_html|safe }}
+</main>

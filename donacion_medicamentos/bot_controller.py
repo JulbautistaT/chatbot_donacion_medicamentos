@@ -978,29 +978,63 @@ class BotController:
 
     async def wellcome_user(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Mensaje de bienvenida y inicio de sesión"""
-        telegram_id = update.effective_user.id
+        telegram_id = str(update.effective_chat.id)  # ← chat_id como string
 
         # Verificar sesión activa
         session = self.__find_active_session(telegram_id)
         if session and session.get("is_active"):
-            await update.message.reply_text(
+            await update.message.reply_html(
                 "👋 Ya tienes una sesión activa. Completa la sesión actual o usa /salir para cerrarla."
             )
             return
 
         # Crear nueva sesión
         session = self.__create_session(telegram_id)
+        
+        # OBTENER VERSIÓN ACTIVA DESDE BD
+        from politicas.models import PoliticaDatos
+        try:
+            politica_activa = PoliticaDatos.objects.get(es_activa=True)
+            version = politica_activa.version
+            url = "http://127.0.0.1:8000/politica-de-datos/"  # local
+            # url = f"https://www.donacionmedicamentos.com/politica-de-datos/?v={version}"  # prod
+        except PoliticaDatos.DoesNotExist:
+            version = "1.0"
+            url = "http://127.0.0.1:8000/politica-de-datos/"
 
         await update.message.reply_html(
-            "👋 ¡Hola! Bienvenido al sistema de donación de medicamentos. 💊🤝\n\n"
-            "Antes de continuar, por favor acepta nuestra <b>Política de Tratamiento de Datos</b> 📄🔒.\n"
-            "🔗 <a href='https://www.donacionmedicamentos.com/politica-de-tratamiento-de-datos'>Leer política</a>\n\n"
-            "Si estás de acuerdo, presiona el botón <b>Acepto</b> para continuar. ✅",
+            f"👋 ¡Hola! Bienvenido al sistema de donación de medicamentos. 💊🤝\n\n"
+            f"Antes de continuar, por favor acepta nuestra <b>Política de Tratamiento de Datos</b> 📄🔒.\n"
+            f"📋 <strong>Versión {version}</strong>\n"
+            f"🔗 <a href='{url}'>Leer política</a>\n\n"
+            f"Si estás de acuerdo, presiona el botón <b>Acepto</b> para continuar. ✅",
             reply_markup=ReplyKeyboardMarkup(
-                [[KeyboardButton("Acepto ✅")]],
+                [[KeyboardButton('Acepto ✅')]],
                 one_time_keyboard=True,
                 selective=True,
             ),
+        )
+
+    async def handle_acepto(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = str(update.effective_chat.id)
+        
+        from politicas.models import PoliticaDatos, AceptacionPolitica
+        from django.utils import timezone
+        
+        politica = PoliticaDatos.objects.get(es_activa=True)
+        
+        AceptacionPolitica.objects.create(
+            telegram_chat_id=chat_id,
+            politica=politica,
+            fecha_consentimiento=timezone.now().date(),
+            hora_consentimiento=timezone.now().time(),
+            acepto=True,
+        )
+        
+        await update.message.reply_html(
+            f"✅ <b>Consentimiento registrado</b>\n\n"
+            f"📋 v{politica.version}\n"
+            f"📅 {timezone.now().strftime('%d/%m/%Y %H:%M:%S')}"
         )
 
     async def end_session_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

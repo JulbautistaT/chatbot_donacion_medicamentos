@@ -58,8 +58,9 @@ class MedicamentoDonadoAdmin(admin.ModelAdmin):
 
 @admin.register(stock_models.Solicitante)
 class SolicitanteAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'documento', 'telefono', 'direccion_beneficiario', 'edad', 'fecha_registro')
+    list_display = ('nombre', 'documento', 'telefono', 'direccion_beneficiario', 'edad', 'fecha_registro', 'verificado')
     search_fields = ('nombre', 'documento')
+    list_filter = ('verificado',)
 
 
 class DetalleSolicitudInline(admin.TabularInline):
@@ -76,7 +77,9 @@ class EntregaInline(admin.TabularInline):
 class FormulaInline(admin.TabularInline):
     model = stock_models.Formula
     extra = 1
-    
+    readonly_fields = ('texto_ocr',)
+    fields = ('archivo_formula', 'texto_ocr')
+
 
 @admin.register(stock_models.Solicitud)
 class SolicitudAdmin(admin.ModelAdmin):
@@ -86,22 +89,29 @@ class SolicitudAdmin(admin.ModelAdmin):
     raw_id_fields = ('solicitante',)
     inlines = [FormulaInline, DetalleSolicitudInline, EntregaInline]
 
-    actions = ['download_requests_info']
+    actions = ['download_requests_info', 'notificar_solicitudes_aceptadas']
 
     @admin.action(description='Descargar información de solicitudes')
     def download_requests_info(self, request, queryset):
         """Custom action to download requests information."""
-        # Implement the logic to download requests information
-        
         if queryset.exists():
             return solicitud_actions.download_requests_info(self, request, queryset)
-            
         else:
             self.message_user(request, "No requests selected for download.", level='warning')
+
+    @admin.action(description='Notificar por Telegram a solicitantes (solicitudes ACEPTADAS)')
+    def notificar_solicitudes_aceptadas(self, request, queryset):
+        """Sends a Telegram message to each solicitante with an ACEPTADA solicitud."""
+        solicitud_actions.notificar_solicitudes_aceptadas(self, request, queryset)
 
 
 @admin.register(stock_models.Formula)
 class SolicitudFormulaAdmin(admin.ModelAdmin):
-    list_display = ('solicitud', 'archivo_formula')
+    list_display = ('solicitud', 'archivo_formula', 'tiene_ocr')
     search_fields = ('solicitud__solicitante__nombre',)
     raw_id_fields = ('solicitud',)
+    readonly_fields = ('texto_ocr',)
+
+    @admin.display(boolean=True, description='OCR extraído')
+    def tiene_ocr(self, obj):
+        return bool(obj.texto_ocr)

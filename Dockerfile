@@ -37,6 +37,7 @@ RUN apt-get update -y && apt-get install -y \
     libxt6 \
     poppler-utils \
     tesseract-ocr \
+    tesseract-ocr-spa \
     unzip \
     wget \
     xvfb \

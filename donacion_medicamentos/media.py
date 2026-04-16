@@ -47,7 +47,17 @@ def protected_serve(request, path, document_root=None, show_indexes=False):
 
         media_user = hashmd5_pk == filename_list[0]
         media_public = hashmd5_public == filename_list[0]
-        media_user_admin = 'admin' in user.groups.values_list("name", flat=True)
+        # Admin access: allow staff/superuser, legacy "admin" group,
+        # or explicit stock permissions granted via Django admin.
+        media_user_admin = (
+            user.is_staff
+            or user.is_superuser
+            or user.groups.filter(name="admin").exists()
+            or user.has_perm("stock.view_formula")
+            or user.has_perm("stock.change_formula")
+            or user.has_perm("stock.view_solicitud")
+            or user.has_perm("stock.change_solicitud")
+        )
 
         if media_user or media_public or media_user_admin:
             return serve(request, path, document_root, show_indexes)

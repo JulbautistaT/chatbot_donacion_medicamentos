@@ -159,6 +159,11 @@ class Formula(models.Model):
         upload_to='formulas/',
         help_text='Archivo de la fórmula solicitada'
     )
+    texto_ocr = models.TextField(
+        null=True,
+        blank=True,
+        help_text='Texto extraído por OCR del archivo (uso interno del administrador)'
+    )
 
 
 class Medicamento(models.Model):
@@ -269,6 +274,10 @@ class Solicitante(models.Model):
     fecha_registro = models.DateTimeField(
         auto_now_add=True,
         help_text='Fecha y hora en que se registró el solicitante'
+    )
+    verificado = models.BooleanField(
+        default=False,
+        help_text='Indica si el solicitante fue verificado mediante OCR de fórmula médica'
     )
 
     def __str__(self):

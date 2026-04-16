@@ -19,8 +19,8 @@ class PoliticaDatos(models.Model):
 class AceptacionPolitica(models.Model):
     telegram_chat_id = models.CharField(max_length=50, unique=True)
     politica = models.ForeignKey(PoliticaDatos, on_delete=models.PROTECT)
-    fecha_consentimiento = models.DateField(default=date.today())
-    hora_consentimiento = models.TimeField(default=timezone.now().time)
+    fecha_consentimiento = models.DateField(default=date.today)
+    hora_consentimiento = models.TimeField(null=True, blank=True)
     acepto = models.BooleanField(default=True)
     fecha_hora_completa = models.DateTimeField(default=timezone.now)
 

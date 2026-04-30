@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -16,7 +16,6 @@ from telegram import ForceReply, Update, KeyboardButton, ReplyKeyboardMarkup, Re
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 
-# Configuración de logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
@@ -39,10 +38,12 @@ class SessionSteps:
     REQ_MED_DESCRIPTION = "REQUEST_MED_DESCRIPTION"
     REQ_MED_FIRST_LETTER = "REQUEST_MED_FIRST_LETTER"
     REQ_MED_LIST_CHOSEN = "REQUEST_MED_LIST_CHOSEN"
-    REQ_MED_QUANTITY = "REQUEST_MED_QUANTITY"
+    # REQ_MED_QUANTITY eliminado — cantidad fija en 1 por selección
     REQ_PHOTO = "REQUEST_PHOTO"
     REQ_PHOTO_VALIDATION = "REQUEST_PHOTO_VALIDATION"
     REQ_MORE_PHOTOS = "REQUEST_MORE_PHOTOS"
+    REQ_RELINK_CONFIRM = "REQUEST_RELINK_CONFIRM"
+    REQ_RELINK_DOCUMENT = "REQUEST_RELINK_DOCUMENT"
     END = "END"
 
 
@@ -62,19 +63,16 @@ class FormulaValidator:
             text = text.replace(old, new)
         text = re.sub(r'[^a-z0-9\s]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
-        return text.strip() 
+        return text.strip()
 
     @staticmethod
     def extract_document_number(text: str) -> List[str]:
-        """Extrae posibles números de documento del texto"""
         text_collapsed = re.sub(r'(?<=\d) (?=\d)', '', text)
         texts_to_search = [text, text_collapsed]
-
         patterns = [
             r'\b(\d{6,12})\b',
             r'(?:c\.?c\.?|cedula|documento|identificacion|identif)[^0-9]{0,10}(\d[\d ]{4,11}\d)',
         ]
-
         found_documents = []
         for search_text in texts_to_search:
             for pattern in patterns:
@@ -84,20 +82,13 @@ class FormulaValidator:
                     doc = re.sub(r'\D', '', doc)
                     if 6 <= len(doc) <= 12:
                         found_documents.append(doc)
-
         unique_docs = list(set(found_documents))
         logger.info(f"🆔 Documentos encontrados: {unique_docs}")
         return unique_docs
 
     @staticmethod
     def validate_name_flexible(text_normalized: str, expected_name_normalized: str) -> Dict[str, Any]:
-        result = {
-            'matched': False,
-            'matched_words': [],
-            'strategy': None,
-            'confidence': 0.0
-        }
-
+        result = {'matched': False, 'matched_words': [], 'strategy': None, 'confidence': 0.0}
         expected_words = [w for w in expected_name_normalized.split() if len(w) >= 3]
         if not expected_words:
             logger.warning("⚠️ No hay palabras válidas en el nombre esperado")
@@ -105,13 +96,10 @@ class FormulaValidator:
 
         logger.info(f"🔍 Buscando palabras: {expected_words}")
 
-        # Estrategia 1: Palabras completas
         matched_full = []
         for word in expected_words:
-            pattern = r'\b' + re.escape(word) + r'\b'
-            if re.search(pattern, text_normalized):
+            if re.search(r'\b' + re.escape(word) + r'\b', text_normalized):
                 matched_full.append(word)
-                logger.info(f"  ✅ '{word}' encontrada (completa)")
         if len(matched_full) >= len(expected_words) * 0.5:
             result.update({'matched': True, 'matched_words': matched_full,
                            'strategy': 'palabras_completas',
@@ -119,13 +107,10 @@ class FormulaValidator:
             logger.info(f"✅ Nombre validado (palabras completas): {matched_full}")
             return result
 
-        # Estrategia 2: Palabras parciales
         matched_partial = []
         for word in expected_words:
-            if len(word) >= 4:
-                if word[:4] in text_normalized or word[-4:] in text_normalized:
-                    matched_partial.append(word)
-                    logger.info(f"  ✅ '{word}' encontrada (parcial)")
+            if len(word) >= 4 and (word[:4] in text_normalized or word[-4:] in text_normalized):
+                matched_partial.append(word)
         if len(matched_partial) >= len(expected_words) * 0.5:
             result.update({'matched': True, 'matched_words': matched_partial,
                            'strategy': 'palabras_parciales',
@@ -133,11 +118,9 @@ class FormulaValidator:
             logger.info(f"✅ Nombre validado (parcial): {matched_partial}")
             return result
 
-        # Estrategia 3: Secuencia de letras
         all_letters_name = ''.join(expected_words)
         all_letters_text = text_normalized.replace(' ', '')
-        matched_chars = 0
-        text_idx = 0
+        matched_chars, text_idx = 0, 0
         for char in all_letters_name:
             found_idx = all_letters_text.find(char, text_idx)
             if found_idx != -1:
@@ -150,7 +133,6 @@ class FormulaValidator:
             logger.info(f"✅ Nombre validado (secuencia letras): {char_match_ratio:.1%}")
             return result
 
-        # Estrategia 4: Solo apellidos
         apellidos = [w for w in expected_words if len(w) >= 4][-2:]
         if apellidos:
             matched_apellidos = [w for w in apellidos if w in text_normalized]
@@ -161,19 +143,13 @@ class FormulaValidator:
                 logger.info(f"✅ Nombre validado (apellidos): {matched_apellidos}")
                 return result
 
-        logger.warning(f"❌ Nombre NO validado. Intentos: completas={matched_full}, "
-                       f"parciales={matched_partial}, letras={char_match_ratio:.1%}")
+        logger.warning(f"❌ Nombre NO validado.")
         return result
 
     @staticmethod
     def validate_formula(text: str, expected_document: str, expected_name: str) -> Dict[str, Any]:
-        result = {
-            'is_valid': False,
-            'document_match': False,
-            'name_match': False,
-            'errors': [],
-            'debug_info': {}
-        }
+        result = {'is_valid': False, 'document_match': False, 'name_match': False,
+                  'errors': [], 'debug_info': {}}
 
         if not text or len(text) < 50:
             result['errors'].append("Texto insuficiente o no se pudo leer el documento")
@@ -182,39 +158,28 @@ class FormulaValidator:
 
         text_normalized = FormulaValidator.normalize_text(text)
         expected_name_normalized = FormulaValidator.normalize_text(expected_name)
-        logger.info(f"🔍 Validando contra documento: {expected_document}")
-        logger.info(f"🔍 Validando contra nombre: {expected_name}")
         result['debug_info']['text_length'] = len(text)
         result['debug_info']['text_preview'] = text[:300]
 
-        # ── Validar documento ──
         found_documents = FormulaValidator.extract_document_number(text)
         document_matched = expected_document in found_documents
         if not document_matched:
             for found in found_documents:
                 if expected_document in found or found in expected_document:
                     document_matched = True
-                    logger.info(f"✅ Documento {expected_document} encontrado (fuzzy) en '{found}'")
                     break
 
         if document_matched:
             result['document_match'] = True
-            logger.info(f"✅ Documento {expected_document} ENCONTRADO")
         else:
             result['errors'].append("documento")
-            logger.warning(f"❌ Documento {expected_document} NO encontrado. Encontrados: {found_documents}")
         result['debug_info']['found_documents'] = found_documents
 
-        # ── Validar nombre ──
         name_validation = FormulaValidator.validate_name_flexible(text_normalized, expected_name_normalized)
         result['name_match'] = name_validation['matched']
         result['debug_info']['name_validation'] = name_validation
-        if result['name_match']:
-            logger.info(f"✅ Nombre verificado con estrategia '{name_validation['strategy']}' "
-                        f"(confianza: {name_validation['confidence']:.1%})")
-        else:
+        if not result['name_match']:
             result['errors'].append("nombre")
-            logger.warning("❌ Nombre NO verificado con ninguna estrategia")
 
         result['is_valid'] = result['document_match'] and result['name_match']
         logger.info(f"📊 Resultado: doc={result['document_match']}, "
@@ -223,11 +188,12 @@ class FormulaValidator:
 
 
 class BotController:
-    """Controlador principal del bot de Telegram para gestión de solicitudes de medicamentos"""
+    """Controlador principal del bot de Telegram"""
 
     SESSION_EXPIRY_HOURS = 12
-    MAX_MEDICATIONS = 10
+    MAX_MEDICATIONS = 4
     MAX_OCR_ATTEMPTS = 2
+    MAX_DOC_ATTEMPTS = 5
 
     def __init__(self):
         self.__application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
@@ -249,8 +215,11 @@ class BotController:
                 "medication_count": 0,
                 "photos_uploaded": 0,
                 "ocr_attempts": 0,
-                "pending_medications": [],  
+                "doc_attempts": 0,
+                "relink_ocr_attempts": 0,
+                "pending_medications": [],
                 "pending_files": [],
+                "documento_relink": None,
             },
             "step": SessionSteps.NEW_USER,
             "is_active": True,
@@ -311,14 +280,22 @@ class BotController:
 
     # ========== GESTIÓN DE USUARIOS ==========
 
-    def get_user(self, telegram_id: int) -> List[stock_models.Solicitante]:
-        return list(stock_models.Solicitante.objects.filter(telegram_id=str(telegram_id)))
-
     def get_user_by_document(self, document: str) -> Optional[stock_models.Solicitante]:
         try:
             return stock_models.Solicitante.objects.get(documento=document)
         except stock_models.Solicitante.DoesNotExist:
             return None
+
+    def get_user_secure(
+        self, telegram_id: int, document_number: str
+    ) -> Tuple[Optional[stock_models.Solicitante], str]:
+        user_by_doc = self.get_user_by_document(document_number)
+        if not user_by_doc:
+            return None, 'not_found'
+        if user_by_doc.telegram_id == str(telegram_id):
+            return user_by_doc, 'owner'
+        logger.warning(f"[{telegram_id}] 🔒 Intento de acceso a documento ajeno: {document_number}")
+        return None, 'forbidden'
 
     def create_user(self, telegram_id: int, session_data: Dict[str, Any]) -> stock_models.Solicitante:
         solicitante = stock_models.Solicitante(
@@ -345,25 +322,31 @@ class BotController:
             logger.info(f"Usuario {solicitante.id} actualizado")
         return changed
 
+    def relink_telegram_id(
+        self, solicitante: stock_models.Solicitante, new_telegram_id: int
+    ) -> None:
+        old_id = solicitante.telegram_id
+        solicitante.telegram_id = str(new_telegram_id)
+        solicitante.save(update_fields=["telegram_id"])
+        logger.info(
+            f"[{new_telegram_id}] 🔗 telegram_id revinculado: {old_id} -> {new_telegram_id} "
+            f"para documento {solicitante.documento}"
+        )
+
     # ========== GESTIÓN DE SOLICITUDES ==========
 
     def _commit_full_request(
-        self,
-        telegram_id: int,
-        session: Dict[str, Any]
+        self, telegram_id: int, session: Dict[str, Any]
     ) -> Optional[stock_models.Solicitud]:
-
         documento = session["session_data"].get("documento")
         if not documento:
             logger.error(f"[{telegram_id}] Commit fallido: no hay documento en sesión")
             return None
-
         solicitante = self.get_user_by_document(documento)
         if not solicitante:
             logger.error(f"[{telegram_id}] Commit fallido: solicitante no encontrado")
             return None
 
-        # Crear la solicitud
         solicitud = stock_models.Solicitud(
             solicitante=solicitante,
             solicitud_propia=True,
@@ -372,22 +355,18 @@ class BotController:
         solicitud.save()
         logger.info(f"[{telegram_id}] ✅ Solicitud creada en BD: {solicitud.id}")
 
-        # Crear los detalles de medicamentos (flujo manual)
-        pending_medications = session["session_data"].get("pending_medications", [])
-        for item in pending_medications:
-            try:
-                med_donado = stock_models.MedicamentoDonado.objects.get(id=item["medication_id"])
-                detalle = stock_models.DetalleSolicitud(
-                    solicitud=solicitud,
-                    medicamento=med_donado.medicamento,
-                    cantidad_solicitada=item["quantity"],
-                    cantidad_entregada=0,
-                )
-                detalle.save()
-                logger.info(f"[{telegram_id}] ✅ Detalle creado: med={item['medication_id']} qty={item['quantity']}")
-            except stock_models.MedicamentoDonado.DoesNotExist:
-                logger.error(f"[{telegram_id}] Medicamento donado {item['medication_id']} no encontrado al hacer commit")
 
+        for item in session["session_data"].get("pending_medications", []):
+            try:
+                medicamento = stock_models.Medicamento.objects.get(id=item["medication_id"])
+                stock_models.DetalleSolicitud(
+                    solicitud=solicitud,
+                    medicamento=medicamento,
+                    cantidad_entregada=None,
+                ).save()
+                logger.info(f"[{telegram_id}] ✅ Detalle creado: med={item['medication_id']}")
+            except stock_models.Medicamento.DoesNotExist:
+                logger.error(f"[{telegram_id}] Medicamento {item['medication_id']} no encontrado")
         return solicitud
 
     def get_request_info(self, session: Dict[str, Any]) -> str:
@@ -407,11 +386,9 @@ class BotController:
             stock_models.Solicitud.Estado.ACEPTADA: "✅",
         }
         request_info = f"📋 Tienes <b>{solicitudes.count()}</b> solicitudes:\n"
-        solicitud_count = solicitudes.values('estado').annotate(count=Count('estado'))
-        for item in solicitud_count:
+        for item in solicitudes.values('estado').annotate(count=Count('estado')):
             emoji = estado_emojis.get(item['estado'], "")
-            estado = item['estado'].capitalize()
-            request_info += f"- {emoji} <b>{item['count']}</b> {estado}\n"
+            request_info += f"- {emoji} <b>{item['count']}</b> {item['estado'].capitalize()}\n"
         ultima = solicitudes.order_by('-fecha').first()
         if ultima:
             emoji = estado_emojis.get(ultima.estado, "")
@@ -424,72 +401,17 @@ class BotController:
     # ========== GESTIÓN DE MEDICAMENTOS ==========
 
     def get_available_medications(self, first_letter: str) -> Optional[str]:
-        medicamentos = stock_models.MedicamentoDonado.objects.filter(
-            medicamento__nombre_comercial__istartswith=first_letter,
-            estado=stock_models.MedicamentoDonado.Estado.DISPONIBLE
+        medicamentos = stock_models.Medicamento.objects.filter(
+            nombre_comercial__istartswith=first_letter
         )
         if not medicamentos.exists():
-            logger.warning(f"No se encontraron medicamentos con letra '{first_letter}'")
             return None
-        medication_list = [
-            f"{med.id}. {med.medicamento.nombre_comercial} - {med.medicamento.concentracion}"
+        return "\n".join(
+            f"{med.id}. {med.nombre_comercial} - {med.concentracion}"
             for med in medicamentos
-        ]
-        return "\n".join(medication_list)
-
-    def validate_medication_quantity(
-        self, medication_id: int, requested_quantity: int
-    ) -> tuple[bool, Optional[int], Optional[str]]:
-        try:
-            medication = stock_models.MedicamentoDonado.objects.get(id=medication_id)
-            available = medication.cantidad
-            if requested_quantity > available:
-                return False, available, (
-                    f"No hay suficiente cantidad del medicamento seleccionado. ❌\n\n"
-                    f"Solo hay {available} unidades disponibles."
-                )
-            return True, available, None
-        except stock_models.MedicamentoDonado.DoesNotExist:
-            return False, None, "El medicamento seleccionado no existe."
+        )
 
     # ========== GESTIÓN DE ARCHIVOS Y OCR ==========
-
-    async def save_file(
-        self,
-        update: Update,
-        solicitud_obj: stock_models.Solicitud
-    ) -> Optional[Tuple[stock_models.Formula, str]]:
-        try:
-            photo_path_tmp = None
-            if update.message.document:
-                doc = update.message.document
-                photo_file = await doc.get_file()
-                ext = os.path.splitext(doc.file_name)[1] or ".jpg"
-                photo_dir = Path(settings.BASE_DIR) / "photos"
-                photo_dir.mkdir(exist_ok=True)
-                photo_path_tmp = str(photo_dir / f"{doc.file_unique_id}{ext}")
-                await photo_file.download_to_drive(photo_path_tmp)
-            elif update.message.photo:
-                photo = update.message.photo[-1]
-                photo_file = await photo.get_file()
-                photo_dir = Path(settings.BASE_DIR) / "photos"
-                photo_dir.mkdir(exist_ok=True)
-                photo_path_tmp = str(photo_dir / f"{photo.file_unique_id}.jpg")
-                await photo_file.download_to_drive(photo_path_tmp)
-
-            if photo_path_tmp:
-                photo_path = Path(photo_path_tmp)
-                with photo_path.open('rb') as photo_file:
-                    django_file = django_files.File(photo_file, name=photo_path.name)
-                    formula = stock_models.Formula.objects.create(
-                        solicitud=solicitud_obj,
-                        archivo_formula=django_file,
-                    )
-                    logger.info(f"Archivo guardado para solicitud {solicitud_obj.id}")
-                    return formula, photo_path_tmp
-        except Exception as e:
-            logger.exception(f"Error guardando archivo: {e}")
-        return None
 
     async def download_file_only(self, update: Update) -> Optional[str]:
         try:
@@ -515,30 +437,23 @@ class BotController:
             return None
 
     async def process_multiple_files_with_validation(
-        self,
-        update: Update,
-        telegram_id: int,
-        session: Dict[str, Any]
+        self, update: Update, telegram_id: int, session: Dict[str, Any]
     ) -> None:
-        # Descargar archivo a disco sin tocar la BD todavía
         file_path = await self.download_file_only(update)
         if not file_path:
             await update.message.reply_text("❌ Error al recibir el archivo. Intenta nuevamente.")
             return
 
-        # Guardar ruta en sesión por si necesitamos reintentarlo
         session["session_data"].setdefault("pending_files", []).append(file_path)
         session["session_data"]["photos_uploaded"] = session["session_data"].get("photos_uploaded", 0) + 1
 
         await asyncio.sleep(1.5)
-
         await update.message.reply_text(
             "🔍 Analizando documento(s), por favor espera...\n"
             "Este proceso puede tardar unos minutos, te notificaremos cuando terminemos de analizarlo.",
             reply_markup=ReplyKeyboardRemove()
         )
 
-        # Extraer texto de todos los archivos acumulados en sesión
         combined_text = ""
         for fp in session["session_data"].get("pending_files", []):
             extracted = OCRProcessor.extract_text_from_file(fp)
@@ -548,7 +463,6 @@ class BotController:
         session["session_data"]["ocr_attempts"] = session["session_data"].get("ocr_attempts", 0) + 1
         current_attempt = session["session_data"]["ocr_attempts"]
 
-        # ── OCR no pudo leer nada ──
         if not combined_text or len(combined_text) < 50:
             if current_attempt >= self.MAX_OCR_ATTEMPTS:
                 await update.message.reply_text(
@@ -558,7 +472,7 @@ class BotController:
                 )
                 self.__update_session(telegram_id, SessionSteps.REQ_MED_COUNT, session["session_data"])
                 await update.message.reply_text(
-                    "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
+                    f"🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
                     f"Recuerda que puedes solicitar hasta {self.MAX_MEDICATIONS} medicamentos.",
                     reply_markup=ForceReply(selective=True)
                 )
@@ -576,14 +490,12 @@ class BotController:
                 self.__update_session(telegram_id, SessionSteps.REQ_PHOTO_VALIDATION, session["session_data"])
             return
 
-        # ── Validar contenido ──
         expected_document = session["session_data"].get("documento")
         expected_name = session["session_data"].get("nombre")
         validation_result = FormulaValidator.validate_formula(combined_text, expected_document, expected_name)
-        logger.info(f"[{telegram_id}] Resultado validación OCR (intento {current_attempt}): {validation_result}")
+        logger.info(f"[{telegram_id}] Validación OCR intento {current_attempt}: {validation_result}")
 
         if validation_result['is_valid']:
-            # ── Validación exitosa: ahora sí persistir todo en BD ──
             solicitud_obj = self._commit_full_request(telegram_id, session)
             if not solicitud_obj:
                 await update.message.reply_text(
@@ -593,17 +505,14 @@ class BotController:
                 self.__end_session(telegram_id, "Error en commit de solicitud")
                 return
 
-            # Guardar el archivo vinculado a la solicitud recién creada
             for fp in session["session_data"].get("pending_files", []):
                 try:
                     photo_path = Path(fp)
                     with photo_path.open('rb') as pf:
-                        django_file = django_files.File(pf, name=photo_path.name)
                         formula_obj = stock_models.Formula.objects.create(
                             solicitud=solicitud_obj,
-                            archivo_formula=django_file,
+                            archivo_formula=django_files.File(pf, name=photo_path.name),
                         )
-                        # Guardar texto OCR para el administrador
                         texto_extraido = OCRProcessor.extract_text_from_file(fp)
                         if texto_extraido:
                             formula_obj.texto_ocr = texto_extraido
@@ -611,12 +520,10 @@ class BotController:
                 except Exception as e:
                     logger.warning(f"[{telegram_id}] Error guardando archivo en commit: {e}")
 
-            # Marcar solicitante como verificado
             solicitante = self.get_user_by_document(expected_document)
             if solicitante and not solicitante.verificado:
                 solicitante.verificado = True
                 solicitante.save(update_fields=["verificado"])
-                logger.info(f"[{telegram_id}] Solicitante {expected_document} marcado como verificado")
 
             await update.message.reply_html(
                 "📋 Documento: Verificado\n"
@@ -628,12 +535,10 @@ class BotController:
             self.__end_session(telegram_id, "Solicitud completada exitosamente")
 
         else:
-            # ── Validación fallida ──
             doc_status = "✅ Verificado" if validation_result['document_match'] else "❌ No verificado"
             name_status = "✅ Verificado" if validation_result['name_match'] else "❌ No verificado"
 
             if current_attempt >= self.MAX_OCR_ATTEMPTS:
-                # Agotar intentos → flujo manual (sin persistir nada aún)
                 await update.message.reply_html(
                     f"📋 Documento: {doc_status}\n"
                     f"👤 Nombre: {name_status}\n\n"
@@ -643,7 +548,7 @@ class BotController:
                 )
                 self.__update_session(telegram_id, SessionSteps.REQ_MED_COUNT, session["session_data"])
                 await update.message.reply_text(
-                    "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
+                    f"🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
                     f"Recuerda que puedes solicitar hasta {self.MAX_MEDICATIONS} medicamentos.",
                     reply_markup=ForceReply(selective=True)
                 )
@@ -669,11 +574,11 @@ class BotController:
         session = self.__find_active_session(telegram_id)
         if session and session.get("is_active"):
             await update.message.reply_html(
-                "👋 Ya tienes una sesión activa. Completa la sesión actual o usa /salir para cerrarla."
+                "👋 Ya tienes una sesión activa. Completa la sesión actual o usa salir para cerrarla."
             )
             return
 
-        session = self.__create_session(telegram_id)
+        self.__create_session(telegram_id)
 
         from politicas.models import PoliticaDatos
         try:
@@ -749,7 +654,7 @@ class BotController:
         self.__update_last_activity(telegram_id)
         step = session.get("step")
 
-        # ========== STEP: NUEVA SESIÓN / POLÍTICA ==========
+        # ── NEW_USER ──────────────────────────────────────────────────────────
         if step == SessionSteps.NEW_USER:
             logger.info(f"[{telegram_id}] Política aceptada -> solicitando documento")
             self.__update_session(telegram_id, SessionSteps.REQ_DOCUMENT, {"documento": None})
@@ -761,7 +666,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: DOCUMENTO ==========
+        # ── REQ_DOCUMENT ──────────────────────────────────────────────────────
         if step == SessionSteps.REQ_DOCUMENT:
             if not text.isdigit():
                 await update.message.reply_text(
@@ -771,42 +676,40 @@ class BotController:
                 return
 
             document_number = text
-            logger.info(f"[{telegram_id}] Documento recibido: {document_number}")
-            user_list = self.get_user(telegram_id)
-            user_by_document = self.get_user_by_document(document_number)
+            attempts = session["session_data"].get("doc_attempts", 0) + 1
+            session["session_data"]["doc_attempts"] = attempts
+            if attempts > self.MAX_DOC_ATTEMPTS:
+                self.__end_session(telegram_id, "Demasiados intentos de documento")
+                await update.message.reply_text(
+                    "⚠️ Demasiados intentos. La sesión fue cerrada por seguridad.",
+                    reply_markup=ReplyKeyboardRemove(),
+                )
+                return
 
-            user_match = None
-            for u in user_list:
-                if user_by_document and u.id == user_by_document.id:
-                    user_match = u
-                    break
+            logger.info(f"[{telegram_id}] Documento recibido: {document_number} (intento {attempts})")
+            solicitante, status = self.get_user_secure(telegram_id, document_number)
 
-            if user_match:
+            if status == 'owner':
                 self.__update_session(telegram_id, SessionSteps.KNOWN_USER, {
-                    "documento": user_match.documento,
-                    "nombre": user_match.nombre,
-                    "direccion_beneficiario": user_match.direccion_beneficiario,
-                    "edad": user_match.edad,
+                    "documento": solicitante.documento,
+                    "nombre": solicitante.nombre,
+                    "direccion_beneficiario": solicitante.direccion_beneficiario,
+                    "edad": solicitante.edad,
                 })
-                first_name = user_match.nombre.split()[0] if user_match.nombre else "Usuario"
+                first_name = solicitante.nombre.split()[0] if solicitante.nombre else "Usuario"
                 await update.message.reply_html(
                     f"👋 ¡Hola {first_name}! He verificado tu documento {document_number}.\n\n"
                     "¿Los siguientes datos están correctos?\n"
-                    f"<b>Edad:</b> {user_match.edad}\n"
-                    f"<b>Dirección:</b> {user_match.direccion_beneficiario}\n\n"
+                    f"<b>Edad:</b> {solicitante.edad}\n"
+                    f"<b>Dirección:</b> {solicitante.direccion_beneficiario}\n\n"
                     "Si todo está correcto, presiona <b>Sí, correcto ✅</b> para continuar.",
                     reply_markup=ReplyKeyboardMarkup(
                         [[KeyboardButton("Sí, correcto ✅"), KeyboardButton("No, corregir ✏️")]],
                         one_time_keyboard=True, selective=True
                     )
                 )
-                return
-            elif user_by_document:
-                await update.message.reply_text(
-                    "⚠️ Este documento ya está registrado con otro usuario. Revisa el número ingresado."
-                )
-                return
-            else:
+
+            elif status == 'not_found':
                 self.__update_session(telegram_id, SessionSteps.REQ_NAME, {"documento": document_number})
                 await update.message.reply_text(
                     "🙋‍♂️ ¡Gracias! Ahora, por favor escribe el <b>nombre completo</b> de la persona que necesita los medicamentos.\n\n"
@@ -814,9 +717,146 @@ class BotController:
                     reply_markup=ForceReply(selective=True),
                     parse_mode="HTML",
                 )
+
+            else:  # forbidden
+                self.__update_session(
+                    telegram_id, SessionSteps.REQ_RELINK_CONFIRM,
+                    {"documento_relink": document_number}
+                )
+                await update.message.reply_html(
+                    f"⚠️ El documento <b>{document_number}</b> ya tiene una cuenta asociada.\n\n"
+                    "¿Confirmas que este es tu número de documento?",
+                    reply_markup=ReplyKeyboardMarkup(
+                        [[KeyboardButton("Sí, es el mío ✅"), KeyboardButton("No, corregir ✏️")]],
+                        one_time_keyboard=True, selective=True
+                    )
+                )
             return
 
-        # ========== STEP: NOMBRE ==========
+        # ── REQ_RELINK_CONFIRM ────────────────────────────────────────────────
+        if step == SessionSteps.REQ_RELINK_CONFIRM:
+            text_lower = text.lower()
+            if "no" in text_lower or "corregir" in text_lower:
+                self.__update_session(telegram_id, SessionSteps.REQ_DOCUMENT, {"documento_relink": None})
+                await update.message.reply_text(
+                    "Entendido. Por favor escribe nuevamente tu número de documento.",
+                    reply_markup=ForceReply(selective=True)
+                )
+                return
+            if "sí" in text_lower or "si" in text_lower or "mío" in text_lower or "mio" in text_lower:
+                documento_relink = session["session_data"].get("documento_relink")
+                self.__update_session(
+                    telegram_id, SessionSteps.REQ_RELINK_DOCUMENT,
+                    {"documento_relink": documento_relink, "relink_ocr_attempts": 0}
+                )
+                await update.message.reply_text(
+                    "📷 Para verificar que eres el titular, sube una foto clara "
+                    "de tu documento de identidad.\n\n"
+                    "💡 Asegúrate de que se vean claramente:\n"
+                    "  • Tu nombre completo\n"
+                    "  • Tu número de documento\n\n"
+                    "⚠️ Envíalo como <b>Archivo</b> (📎 adjunto), no como foto.",
+                    reply_markup=ReplyKeyboardRemove(),
+                    parse_mode="HTML"
+                )
+                return
+            await update.message.reply_text(
+                "Por favor selecciona una opción válida.",
+                reply_markup=ReplyKeyboardMarkup(
+                    [[KeyboardButton("Sí, es el mío ✅"), KeyboardButton("No, corregir ✏️")]],
+                    one_time_keyboard=True, selective=True
+                )
+            )
+            return
+
+        # ── REQ_RELINK_DOCUMENT ───────────────────────────────────────────────
+        if step == SessionSteps.REQ_RELINK_DOCUMENT:
+            if not (update.message.document or update.message.photo):
+                await update.message.reply_text(
+                    "📄 Por favor sube una foto o PDF de tu documento de identidad.\n\n"
+                    "⚠️ Recuerda enviarlo como <b>Archivo</b> (📎 adjunto).",
+                    reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML"
+                )
+                return
+
+            file_path = await self.download_file_only(update)
+            if not file_path:
+                await update.message.reply_text("❌ Error al recibir el archivo. Intenta nuevamente.")
+                return
+
+            await asyncio.sleep(1.5)
+            await update.message.reply_text(
+                "🔍 Verificando tu documento de identidad, por favor espera...",
+                reply_markup=ReplyKeyboardRemove()
+            )
+
+            relink_attempt = session["session_data"].get("relink_ocr_attempts", 0) + 1
+            session["session_data"]["relink_ocr_attempts"] = relink_attempt
+
+            documento_relink = session["session_data"].get("documento_relink")
+            solicitante = self.get_user_by_document(documento_relink)
+            if not solicitante:
+                self.__end_session(telegram_id, "Solicitante no encontrado en revinculación")
+                await update.message.reply_text(
+                    "❌ Ocurrió un error inesperado. Por favor inicia de nuevo con /iniciar o Hola.",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+                return
+
+            extracted_text = OCRProcessor.extract_text_from_file(file_path)
+            validation_result = FormulaValidator.validate_formula(
+                extracted_text or "", documento_relink, solicitante.nombre
+            )
+            logger.info(
+                f"[{telegram_id}] Revinculación OCR intento {relink_attempt}: "
+                f"doc={validation_result['document_match']} nombre={validation_result['name_match']}"
+            )
+
+            if validation_result['is_valid']:
+                self.relink_telegram_id(solicitante, telegram_id)
+                self.__update_session(telegram_id, SessionSteps.KNOWN_USER, {
+                    "documento": solicitante.documento,
+                    "nombre": solicitante.nombre,
+                    "direccion_beneficiario": solicitante.direccion_beneficiario,
+                    "edad": solicitante.edad,
+                    "documento_relink": None,
+                })
+                first_name = solicitante.nombre.split()[0] if solicitante.nombre else "Usuario"
+                await update.message.reply_html(
+                    f"✅ ¡Identidad verificada! Bienvenido de nuevo, <b>{first_name}</b>.\n\n"
+                    "Tu cuenta ha sido revinculada correctamente. ¿Qué deseas hacer ahora?",
+                    reply_markup=ReplyKeyboardMarkup(
+                        [[KeyboardButton("💊 Solicitar medicamentos"), KeyboardButton("📋 Consultar solicitudes")]],
+                        one_time_keyboard=True, selective=True
+                    )
+                )
+            else:
+                doc_status = "✅ Verificado" if validation_result['document_match'] else "❌ No verificado"
+                name_status = "✅ Verificado" if validation_result['name_match'] else "❌ No verificado"
+                if relink_attempt >= self.MAX_OCR_ATTEMPTS:
+                    logger.warning(
+                        f"[{telegram_id}] 🔒 Revinculación fallida tras {relink_attempt} intentos "
+                        f"para documento {documento_relink}"
+                    )
+                    self.__end_session(telegram_id, "Revinculación fallida: intentos agotados")
+                    await update.message.reply_text(
+                        "❌ No fue posible verificar tu identidad.\n\n"
+                        "Si necesitas ayuda, contacta a un administrador.",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                else:
+                    remaining = self.MAX_OCR_ATTEMPTS - relink_attempt
+                    await update.message.reply_html(
+                        f"📋 Documento: {doc_status}\n"
+                        f"👤 Nombre: {name_status}\n\n"
+                        f"⚠️ No se pudo verificar la identidad. Tienes {remaining} intento(s) más.\n\n"
+                        "Por favor sube una imagen más clara de tu documento.",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+            return
+
+        # ── REQ_NAME ──────────────────────────────────────────────────────────
         if step == SessionSteps.REQ_NAME:
             if not text:
                 await update.message.reply_text(
@@ -832,7 +872,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: EDAD ==========
+        # ── REQ_AGE ───────────────────────────────────────────────────────────
         if step == SessionSteps.REQ_AGE:
             if not text.isdigit():
                 await update.message.reply_text(
@@ -851,7 +891,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: DIRECCIÓN ==========
+        # ── REQ_ADDRESS ───────────────────────────────────────────────────────
         if step == SessionSteps.REQ_ADDRESS:
             if not text:
                 await update.message.reply_text(
@@ -881,7 +921,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: USUARIO CONOCIDO ==========
+        # ── KNOWN_USER ────────────────────────────────────────────────────────
         if step == SessionSteps.KNOWN_USER:
             text_lower = text.lower()
             if "solicitar" in text_lower:
@@ -927,12 +967,10 @@ class BotController:
             )
             return
 
-        # ========== STEP: MÉTODO DE SOLICITUD ==========
+        # ── REQ_MEDICATIONS ───────────────────────────────────────────────────
         if step == SessionSteps.REQ_MEDICATIONS:
             text_clean = "".join(c for c in text.lower() if c.isalnum() or c.isspace())
-
             if "describir" in text_clean or "manual" in text_clean:
-                # Flujo manual: NO crear solicitud aún
                 self.__update_session(telegram_id, SessionSteps.REQ_MED_COUNT, {})
                 await update.message.reply_text(
                     "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
@@ -940,12 +978,9 @@ class BotController:
                     reply_markup=ForceReply(selective=True)
                 )
                 return
-
             if "subir" in text_clean or "receta" in text_clean or "foto" in text_clean:
-                # Flujo OCR: NO crear solicitud aún; se crea solo si valida OK
                 self.__update_session(telegram_id, SessionSteps.REQ_PHOTO, {
-                    "pending_medications": [],
-                    "pending_files": [],
+                    "pending_medications": [], "pending_files": [],
                 })
                 await update.message.reply_text(
                     "📄 Por favor, sube el documento en <b>PDF</b> o una <b>imagen clara</b> de la fórmula médica.\n\n"
@@ -960,7 +995,6 @@ class BotController:
                     parse_mode="HTML"
                 )
                 return
-
             await update.message.reply_text(
                 "No entendí tu respuesta. ¿Deseas describir los medicamentos o subir una receta?",
                 reply_markup=ReplyKeyboardMarkup(
@@ -970,7 +1004,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: CANTIDAD DE MEDICAMENTOS ==========
+        # ── REQ_MED_COUNT ─────────────────────────────────────────────────────
         if step == SessionSteps.REQ_MED_COUNT:
             if not text.isdigit():
                 await update.message.reply_text(
@@ -985,18 +1019,15 @@ class BotController:
                     reply_markup=ForceReply(selective=True)
                 )
                 return
-
-            # NO crear solicitud aquí; solo guardar la cantidad en sesión
             self.__update_session(telegram_id, SessionSteps.REQ_MED_DESCRIPTION, {
                 "medication_count": count,
-                "pending_medications": [],   # reiniciar lista
+                "pending_medications": [],
             })
             await update.message.reply_text(
                 "📝 Ahora vamos a solicitar los medicamentos uno por uno.\n\n"
                 "💊 Por cada medicamento te pediremos:\n"
                 "1️⃣ Primera letra del nombre\n"
-                "2️⃣ Selección del medicamento\n"
-                "3️⃣ Cantidad necesaria\n\n"
+                "2️⃣ Selección del medicamento\n\n"
                 "Cuando estés listo, presiona 'Continuar'.",
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton("Continuar ▶️"), KeyboardButton("Cancelar ❌")]],
@@ -1005,7 +1036,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: DESCRIPCIÓN DE MEDICAMENTOS ==========
+        # ── REQ_MED_DESCRIPTION ───────────────────────────────────────────────
         if step == SessionSteps.REQ_MED_DESCRIPTION:
             text_lower = text.lower()
             if "continuar" in text_lower:
@@ -1018,7 +1049,6 @@ class BotController:
                 )
                 return
             if "cancel" in text_lower or "cancelar" in text_lower:
-                # No hay nada en BD que cancelar; solo cerrar sesión
                 self.__end_session(telegram_id, "Cancelado por usuario")
                 await update.message.reply_text(
                     "❌ Solicitud cancelada. Puedes iniciar una nueva con /iniciar o Hola.",
@@ -1034,7 +1064,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: PRIMERA LETRA ==========
+        # ── REQ_MED_FIRST_LETTER ──────────────────────────────────────────────
         if step == SessionSteps.REQ_MED_FIRST_LETTER:
             first_letter = text.upper()
             if not first_letter.isalpha() or len(first_letter) != 1:
@@ -1060,7 +1090,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: SELECCIÓN DE MEDICAMENTO ==========
+        # ── REQ_MED_LIST_CHOSEN ───────────────────────────────────────────────
         if step == SessionSteps.REQ_MED_LIST_CHOSEN:
             try:
                 selected_id = int(text)
@@ -1070,11 +1100,11 @@ class BotController:
                     reply_markup=ForceReply(selective=True)
                 )
                 return
+
             first_letter = session["session_data"].get("first_letter")
-            medicamento_exists = stock_models.MedicamentoDonado.objects.filter(
+            medicamento_exists = stock_models.Medicamento.objects.filter(
                 id=selected_id,
-                estado=stock_models.MedicamentoDonado.Estado.DISPONIBLE,
-                medicamento__nombre_comercial__istartswith=first_letter
+                nombre_comercial__istartswith=first_letter
             ).exists()
             if not medicamento_exists:
                 await update.message.reply_text(
@@ -1082,43 +1112,16 @@ class BotController:
                     reply_markup=ForceReply(selective=True)
                 )
                 return
-            self.__update_session(telegram_id, SessionSteps.REQ_MED_QUANTITY, {"selected_medication_id": selected_id})
-            await update.message.reply_text(
-                "🔢 ¿Cuántas unidades de este medicamento necesitas?",
-                reply_markup=ForceReply(selective=True)
-            )
-            return
 
-        # ========== STEP: CANTIDAD ==========
-        if step == SessionSteps.REQ_MED_QUANTITY:
-            if not text.isdigit():
-                await update.message.reply_text(
-                    "Por favor escribe una cantidad válida (número entero).",
-                    reply_markup=ForceReply(selective=True)
-                )
-                return
-            quantity = int(text)
-            if quantity <= 0:
-                await update.message.reply_text(
-                    "La cantidad debe ser mayor que cero.",
-                    reply_markup=ForceReply(selective=True)
-                )
-                return
-            selected_med_id = session["session_data"].get("selected_medication_id")
-            is_valid, available, error_msg = self.validate_medication_quantity(selected_med_id, quantity)
-            if not is_valid:
-                await update.message.reply_text(error_msg, reply_markup=ForceReply(selective=True))
-                return
-
-            # ── Acumular medicamento en sesión, SIN tocar la BD ──
+            # Acumular medicamento en sesión (cantidad fija = 1 por selección)
             session["session_data"].setdefault("pending_medications", []).append({
-                "medication_id": selected_med_id,
-                "quantity": quantity,
+                "medication_id": selected_id,
             })
-            logger.info(f"[{telegram_id}] Medicamento acumulado en sesión: id={selected_med_id}, qty={quantity}")
-
             session["session_data"]["medication_count"] -= 1
             remaining = session["session_data"]["medication_count"]
+            logger.info(
+                f"[{telegram_id}] Medicamento acumulado: id={selected_id} | restantes={remaining}"
+            )
 
             if remaining > 0:
                 self.__update_session(telegram_id, SessionSteps.REQ_MED_FIRST_LETTER, {})
@@ -1127,9 +1130,7 @@ class BotController:
                     f"🔤 Ahora escribe la primera letra del siguiente medicamento (quedan {remaining}).",
                     reply_markup=ForceReply(selective=True)
                 )
-                return
             else:
-                # Todos los medicamentos recopilados → pedir foto obligatoria
                 self.__update_session(telegram_id, SessionSteps.REQ_MORE_PHOTOS, {})
                 await update.message.reply_text(
                     "✅ ¡Perfecto! Ya hemos registrado todos los medicamentos.\n\n"
@@ -1138,9 +1139,9 @@ class BotController:
                     reply_markup=ReplyKeyboardRemove(),
                     parse_mode="HTML",
                 )
-                return
+            return
 
-        # ========== STEP: VALIDACIÓN DE FOTO ==========
+        # ── REQ_PHOTO_VALIDATION ──────────────────────────────────────────────
         if step == SessionSteps.REQ_PHOTO_VALIDATION:
             text_lower = text.lower()
             if "foto" in text_lower or "intentar" in text_lower or "otra" in text_lower:
@@ -1174,7 +1175,7 @@ class BotController:
             )
             return
 
-        # ========== STEP: SUBIDA DE FOTO CON OCR ==========
+        # ── REQ_PHOTO ─────────────────────────────────────────────────────────
         if step == SessionSteps.REQ_PHOTO:
             if update.message.document or update.message.photo:
                 await self.process_multiple_files_with_validation(update, telegram_id, session)
@@ -1197,10 +1198,9 @@ class BotController:
                 )
                 return
 
-        # ========== STEP: MÁS FOTOS (FLUJO MANUAL) ==========
+        # ── REQ_MORE_PHOTOS ───────────────────────────────────────────────────
         if step == SessionSteps.REQ_MORE_PHOTOS:
             if update.message.document or update.message.photo:
-                # Descargar archivo temporalmente
                 file_path = await self.download_file_only(update)
                 if not file_path:
                     await update.message.reply_text(
@@ -1209,7 +1209,6 @@ class BotController:
                     )
                     return
 
-                # ── Ahora sí: hacer commit de TODO en BD de una sola vez ──
                 solicitud_obj = self._commit_full_request(telegram_id, session)
                 if not solicitud_obj:
                     await update.message.reply_text(
@@ -1219,16 +1218,13 @@ class BotController:
                     self.__end_session(telegram_id, "Error en commit de solicitud (flujo manual)")
                     return
 
-                # Guardar el archivo vinculado a la solicitud recién creada
                 try:
                     photo_path = Path(file_path)
                     with photo_path.open('rb') as pf:
-                        django_file = django_files.File(pf, name=photo_path.name)
                         formula_obj = stock_models.Formula.objects.create(
                             solicitud=solicitud_obj,
-                            archivo_formula=django_file,
+                            archivo_formula=django_files.File(pf, name=photo_path.name),
                         )
-                        # Extraer texto OCR para el administrador
                         texto_extraido = OCRProcessor.extract_text_from_file(file_path)
                         if texto_extraido:
                             formula_obj.texto_ocr = texto_extraido
@@ -1253,7 +1249,7 @@ class BotController:
                 )
                 return
 
-        # ========== PASO INESPERADO ==========
+        # ── PASO INESPERADO ───────────────────────────────────────────────────
         logger.error(f"[{telegram_id}] Paso inesperado: {step}")
         self.__end_session(telegram_id, f"Paso inesperado: {step}")
         await update.message.reply_text(
@@ -1284,13 +1280,11 @@ class BotController:
                 await self.wellcome_user(update, context)
             else:
                 await msg.reply_text(
-                    "👋 Ya tienes una sesión activa. Completa la sesión o usa /salir para cerrarla."
+                    "👋 Ya tienes una sesión activa. Completa la sesión o usa salir para cerrarla."
                 )
             return
 
         await self.request_session_step(update, context)
-
-    # ========== INICIAR BOT ==========
 
     def run(self) -> None:
         self.__application.add_handler(CommandHandler("iniciar", self.wellcome_user))
@@ -1300,7 +1294,6 @@ class BotController:
         self.__application.add_handler(
             MessageHandler(filters.TEXT & filters.Regex(fin_pattern), self.handle_plain_text)
         )
-
         saludos_pattern = re.compile(
             r'\b(hola|hi|buenas|buenos\s+días|buenos\s+dias|buenas\s+tardes|buenas\s+noches|buen\s+dia)\b',
             flags=re.IGNORECASE
@@ -1308,13 +1301,11 @@ class BotController:
         self.__application.add_handler(
             MessageHandler(filters.TEXT & filters.Regex(saludos_pattern), self.handle_plain_text)
         )
-
         self.__application.add_handler(
             MessageHandler(
                 filters.TEXT | filters.Document.ALL | filters.PHOTO,
                 self.request_session_step
             )
         )
-
-        logger.info("🤖 Bot iniciado: deskew activo, commit diferido, solo solicitudes completas se persisten")
+        logger.info("🤖 Bot iniciado: seguridad por ownership, revinculación por OCR, commit diferido")
         self.__application.run_polling(allowed_updates=Update.ALL_TYPES)

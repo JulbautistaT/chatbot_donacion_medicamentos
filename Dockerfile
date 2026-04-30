@@ -12,6 +12,7 @@ ENV LANGUAGE=es_ES.UTF-8
 RUN apt-get update -y && apt-get install -y \
     curl \
     firefox-esr \
+    fonts-dejavu-core \
     jq \
     libasound2 \
     libdbus-glib-1-2 \

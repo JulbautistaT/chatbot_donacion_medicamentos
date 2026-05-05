@@ -30,6 +30,7 @@ class SessionSteps:
     NEW_USER = "NEW_USER"
     REQ_DOCUMENT = "REQUEST_DOCUMENT"
     REQ_NAME = "REQUEST_NAME"
+    REQ_PHONE = "REQUEST_PHONE"
     REQ_ADDRESS = "REQUEST_ADDRESS"
     REQ_AGE = "REQUEST_AGE"
     KNOWN_USER = "KNOWN_USER"
@@ -38,7 +39,6 @@ class SessionSteps:
     REQ_MED_DESCRIPTION = "REQUEST_MED_DESCRIPTION"
     REQ_MED_FIRST_LETTER = "REQUEST_MED_FIRST_LETTER"
     REQ_MED_LIST_CHOSEN = "REQUEST_MED_LIST_CHOSEN"
-    # REQ_MED_QUANTITY eliminado — cantidad fija en 1 por selección
     REQ_PHOTO = "REQUEST_PHOTO"
     REQ_PHOTO_VALIDATION = "REQUEST_PHOTO_VALIDATION"
     REQ_MORE_PHOTOS = "REQUEST_MORE_PHOTOS"
@@ -302,7 +302,7 @@ class BotController:
             nombre=session_data.get("nombre"),
             documento=session_data.get("documento"),
             telegram_id=str(telegram_id),
-            telefono=None,
+            telefono=session_data.get("telefono"),
             direccion_beneficiario=session_data.get("direccion_beneficiario"),
             edad=session_data.get("edad"),
         )
@@ -656,6 +656,26 @@ class BotController:
 
         # ── NEW_USER ──────────────────────────────────────────────────────────
         if step == SessionSteps.NEW_USER:
+            text_lower = text.lower()
+            acepto = (
+                "acepto" in text_lower
+                or "acept" in text_lower
+                or "✅" in text
+                or "si" in text_lower
+            )
+
+            if not acepto:
+                self.__end_session(telegram_id, "Usuario no aceptó política de datos")
+                await update.message.reply_html(
+                    "😊 Entendemos tu decisión.\n\n"
+                    "Para poder usar este servicio es necesario aceptar la "
+                    "<b>Política de Tratamiento de Datos</b>.\n\n"
+                    "Si cambias de opinión, puedes escribir <b>Hola</b> cuando quieras "
+                    "y te mostraremos la política nuevamente. ¡Estamos aquí para ayudarte! 💊",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+                return
+
             logger.info(f"[{telegram_id}] Política aceptada -> solicitando documento")
             self.__update_session(telegram_id, SessionSteps.REQ_DOCUMENT, {"documento": None})
             await update.message.reply_text(
@@ -864,15 +884,37 @@ class BotController:
                 )
                 return
             logger.info(f"[{telegram_id}] Nombre recibido: {text}")
-            self.__update_session(telegram_id, SessionSteps.REQ_AGE, {"nombre": text})
+
+            self.__update_session(telegram_id, SessionSteps.REQ_PHONE, {"nombre": text})
             await update.message.reply_text(
-                "🎂 ¡Perfecto! Ahora, por favor escribe la <b>edad</b> de la persona que necesita los medicamentos.",
+                "📱 ¡Perfecto! Ahora escribe el <b>número de teléfono</b> de contacto.\n\n"
+                "Ejemplo: <code>3001234567</code>",
                 reply_markup=ForceReply(selective=True),
-                parse_mode="HTML"
+                parse_mode="HTML",
             )
+
             return
 
-        # ── REQ_AGE ───────────────────────────────────────────────────────────
+
+        # REQ_PHONE ────────────────────────────────────
+        if step == SessionSteps.REQ_PHONE:
+            phone_clean = re.sub(r'\D', '', text)   # deja solo dígitos
+            if not phone_clean or not (7 <= len(phone_clean) <= 15):
+                await update.message.reply_text(
+                    "Por favor escribe un número de teléfono válido (7–15 dígitos).",
+                    reply_markup=ForceReply(selective=True),
+                )
+                return
+            logger.info(f"[{telegram_id}] Teléfono recibido: {phone_clean}")
+            self.__update_session(telegram_id, SessionSteps.REQ_AGE, {"telefono": phone_clean})
+            await update.message.reply_text(
+                "🎂 ¡Genial! Ahora escribe la <b>edad</b> de la persona que necesita los medicamentos.",
+                reply_markup=ForceReply(selective=True),
+                parse_mode="HTML",
+            )
+            return        
+
+        # ── REQ_AGE ───
         if step == SessionSteps.REQ_AGE:
             if not text.isdigit():
                 await update.message.reply_text(

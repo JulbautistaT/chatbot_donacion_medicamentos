@@ -19,11 +19,21 @@ class EntregaAdmin(admin.ModelAdmin):
     list_filter = ('fecha',)          
     raw_id_fields = ('solicitud',)    
 
+    actions = ['generar_acta']
+
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         solicitud = obj.solicitud
         solicitud.estado = stock_models.Solicitud.Estado.ENTREGADA
         solicitud.save()
+
+    @admin.action(description='Generar acta de entrega (PDF)')
+    def generar_acta(self, request, queryset):
+        solicitudes = stock_models.Solicitud.objects.filter(
+            entrega__in=queryset
+        )
+        return pdf_actions.generar_acta_entrega(solicitudes)
+
 
 
 @admin.register(stock_models.Medicamento)
@@ -67,7 +77,7 @@ class SolicitudAdmin(admin.ModelAdmin):
     raw_id_fields = ('solicitante',)
     inlines = [FormulaInline, DetalleSolicitudInline, EntregaInline]
 
-    actions = ['download_requests_info', 'notificar_solicitudes_aceptadas', 'generar_acta']
+    actions = ['download_requests_info', 'notificar_solicitudes_aceptadas']
 
     @admin.action(description='Descargar información de solicitudes')
     def download_requests_info(self, request, queryset):
@@ -100,9 +110,7 @@ class SolicitudAdmin(admin.ModelAdmin):
             level='success'
         )
 
-    @admin.action(description='Generar acta de entrega (PDF)')
-    def generar_acta(self, request, queryset):
-        return pdf_actions.generar_acta_entrega(queryset)
+
 
 
 @admin.register(stock_models.Formula)

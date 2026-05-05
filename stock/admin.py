@@ -16,8 +16,8 @@ class DetalleSolicitudAdmin(admin.ModelAdmin):
 class EntregaAdmin(admin.ModelAdmin):
     list_display = ('solicitud', 'fecha', 'persona_que_entrega', 'observaciones')
     search_fields = ('persona_que_entrega', 'observaciones')
-    list_filter = ('fecha',)          # ✅ coma agregada
-    raw_id_fields = ('solicitud',)    # ✅ coma agregada
+    list_filter = ('fecha',)          
+    raw_id_fields = ('solicitud',)    
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -78,7 +78,6 @@ class SolicitudAdmin(admin.ModelAdmin):
 
     @admin.action(description='Notificar por Telegram (solicitudes ACEPTADAS)')
     def notificar_solicitudes_aceptadas(self, request, queryset):
-        # ✅ Eliminado notificado=False — campo no existe en el modelo
         solicitudes_validas = queryset.filter(
             estado=stock_models.Solicitud.Estado.ACEPTADA,
             solicitante__telegram_id__isnull=False
@@ -93,7 +92,7 @@ class SolicitudAdmin(admin.ModelAdmin):
         solicitud_actions.notificar_solicitudes_aceptadas(
             self, request, solicitudes_validas
         )
-        # ✅ Eliminado solicitudes_validas.update(notificado=True)
+
 
         self.message_user(
             request,

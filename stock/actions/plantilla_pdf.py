@@ -59,9 +59,9 @@ def generar_acta_entrega(queryset):
 
     # Encabezado del documento
     elements.extend([
-        Paragraph("<b>JUNTA ACUEDUCTO</b>", styles["Normal"]),
-        Paragraph("NIT", styles["Normal"]),
-        Paragraph("PERSONERIA JURIDICA", styles["Normal"]),
+        Paragraph("<b>JUNTA ACUEDUCTO COMUNITARIO POPULAR 1</b>", styles["Normal"]),
+        Paragraph("NIT: 96120965-6", styles["Normal"]),
+        Paragraph("PERSONERIA JURIDICA 3554", styles["Normal"]),
         Spacer(1, 10),
         Paragraph("<b>ENTREGA DE MEDICAMENTOS</b>", styles["Title"]),
         Spacer(1, 15),

@@ -92,7 +92,7 @@ class Medicamento(models.Model):
         ordering = ['nombre_comercial']
 
     def __str__(self):
-        return f"{self.nombre_comercial} ({self.concentracion}) - #{self.pk}"
+        return f"{self.nombre_comercial} - {self.concentracion}"
 
 
 class Solicitante(models.Model):

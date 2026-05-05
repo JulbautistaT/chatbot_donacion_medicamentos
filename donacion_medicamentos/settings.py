@@ -44,7 +44,8 @@ INSTALLED_APPS += [
 # OWN APPS
 INSTALLED_APPS += [
     'stock',
-    'politicas'
+    'politicas',
+    'anuncios'
 ]
 
 

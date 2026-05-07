@@ -394,9 +394,10 @@ class BotController:
         if ultima:
             emoji = estado_emojis.get(ultima.estado, "")
             request_info += (
-                f"\n🕓 La última solicitud del <b>{ultima.fecha.strftime('%d de %B de %Y')}</b> "
+                f"\n🕓 La última solicitud <b>#{ultima.id}</b> del <b>{ultima.fecha.strftime('%d de %B de %Y')}</b> "
                 f"está en estado {emoji} <b>{ultima.estado.capitalize()}</b>."
-            )
+            )        
+
         return request_info
 
     # ========== GESTIÓN DE MEDICAMENTOS ==========
@@ -532,7 +533,7 @@ class BotController:
             await update.message.reply_html(
                 "📋 Documento: Verificado\n"
                 "👤 Nombre: Verificado\n\n"
-                "✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada. "
+                "✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada con el número <b>#{solicitud_obj.id}</b>.\n"
                 "Te notificaremos cuando esté lista.",
                 reply_markup=ReplyKeyboardRemove()
             )
@@ -888,15 +889,47 @@ class BotController:
                 )
                 return
             logger.info(f"[{telegram_id}] Nombre recibido: {text}")
-
-            self.__update_session(telegram_id, SessionSteps.REQ_PHONE, {"nombre": text})
-            await update.message.reply_text(
-                "📱 ¡Perfecto! Ahora escribe el <b>número de teléfono</b> de contacto.\n\n"
-                "Ejemplo: <code>3001234567</code>",
-                reply_markup=ForceReply(selective=True),
-                parse_mode="HTML",
+            documento = session["session_data"].get("documento")
+            self.__update_session(telegram_id, SessionSteps.REQ_CONFIRM_DATA, {"nombre": text})
+            await update.message.reply_html(
+                f"📋 Por favor confirma los datos:\n\n"
+                f"🆔 <b>Documento:</b> {documento}\n"
+                f"👤 <b>Nombre:</b> {text}\n\n"
+                "¿Los datos son correctos?",
+                reply_markup=ReplyKeyboardMarkup(
+                    [[KeyboardButton("Sí, continuar ✅"), KeyboardButton("No, corregir ✏️")]],
+                    one_time_keyboard=True, selective=True
+                )
             )
+            return
 
+        # ── REQ_CONFIRM_DATA ──────────────────────────────────────────────────
+        if step == SessionSteps.REQ_CONFIRM_DATA:
+            text_lower = text.lower()
+            if "sí" in text_lower or "si" in text_lower or "continuar" in text_lower:
+                self.__update_session(telegram_id, SessionSteps.REQ_PHONE, {})
+                await update.message.reply_text(
+                    "📱 ¡Perfecto! Ahora escribe el <b>número de teléfono</b> de contacto.\n\n"
+                    "Ejemplo: <code>3001234567</code>",
+                    reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML",
+                )
+                return
+            if "no" in text_lower or "corregir" in text_lower:
+                self.__update_session(telegram_id, SessionSteps.REQ_DOCUMENT, {"nombre": None})
+                await update.message.reply_text(
+                    "Entendido. Por favor escribe nuevamente el <b>número de documento</b>.",
+                    reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML",
+                )
+                return
+            await update.message.reply_text(
+                "Por favor selecciona una opción válida.",
+                reply_markup=ReplyKeyboardMarkup(
+                    [[KeyboardButton("Corregir ✏️"), KeyboardButton("Sí, continuar ✅")]],
+                    one_time_keyboard=True, selective=True
+                )
+            )
             return
 
 
@@ -985,6 +1018,8 @@ class BotController:
             if "consultar" in text_lower:
                 info = self.get_request_info(session)
                 await update.message.reply_html(info)
+                self.__end_session(telegram_id, "Consulta completada")
+
                 return
             if text_lower.startswith(("sí", "si")) or "correcto" in text_lower:
                 await update.message.reply_text(
@@ -1281,7 +1316,7 @@ class BotController:
 
                 self.__end_session(telegram_id, "Flujo manual completado")
                 await update.message.reply_text(
-                    "✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada. "
+                    "✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada con el número <b>#{solicitud_obj.id}</b>.\n. "
                     "Te notificaremos cuando esté lista.",
                     reply_markup=ReplyKeyboardRemove()
                 )

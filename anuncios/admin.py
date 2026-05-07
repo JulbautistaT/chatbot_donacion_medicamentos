@@ -22,7 +22,7 @@ class AnuncioAdmin(admin.ModelAdmin):
         'fecha_anuncio'
     )
 
-    raw_id_fields = ('medicamento',)
+    autocomplete_fields = ['medicamento']
 
     actions = [
         'enviar_anuncio_masivo',

@@ -33,6 +33,7 @@ class SessionSteps:
     REQ_PHONE = "REQUEST_PHONE"
     REQ_ADDRESS = "REQUEST_ADDRESS"
     REQ_AGE = "REQUEST_AGE"
+    REQ_CONFIRM_DATA = "REQUEST_CONFIRM_DATA"
     KNOWN_USER = "KNOWN_USER"
     REQ_MEDICATIONS = "REQUEST_MEDICATIONS"
     REQ_MED_COUNT = "REQUEST_MED_COUNT"
@@ -362,7 +363,7 @@ class BotController:
                 stock_models.DetalleSolicitud(
                     solicitud=solicitud,
                     medicamento=medicamento,
-                    cantidad_entregada=None,
+                    cantidad_entregada=0,
                 ).save()
                 logger.info(f"[{telegram_id}] ✅ Detalle creado: med={item['medication_id']}")
             except stock_models.Medicamento.DoesNotExist:
@@ -520,10 +521,13 @@ class BotController:
                 except Exception as e:
                     logger.warning(f"[{telegram_id}] Error guardando archivo en commit: {e}")
 
-            solicitante = self.get_user_by_document(expected_document)
-            if solicitante and not solicitante.verificado:
-                solicitante.verificado = True
-                solicitante.save(update_fields=["verificado"])
+            try:
+                solicitante = self.get_user_by_document(expected_document)
+                if solicitante and not solicitante.verificado:
+                    solicitante.verificado = True
+                    solicitante.save(update_fields=["verificado"])
+            except Exception as e:
+                logger.warning(f"[{telegram_id}] Error actualizando 'verificado': {e}")
 
             await update.message.reply_html(
                 "📋 Documento: Verificado\n"

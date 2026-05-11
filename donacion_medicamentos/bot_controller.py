@@ -299,17 +299,22 @@ class BotController:
         return None, 'forbidden'
 
     def create_user(self, telegram_id: int, session_data: Dict[str, Any]) -> stock_models.Solicitante:
-        solicitante = stock_models.Solicitante(
-            nombre=session_data.get("nombre"),
-            documento=session_data.get("documento"),
-            telegram_id=str(telegram_id),
-            telefono=session_data.get("telefono"),
-            direccion_beneficiario=session_data.get("direccion_beneficiario"),
-            edad=session_data.get("edad"),
-        )
-        solicitante.save()
-        logger.info(f"[{telegram_id}] Usuario creado: {solicitante.id}")
-        return solicitante
+        try:
+            solicitante = stock_models.Solicitante(
+                nombre=session_data.get("nombre"),
+                documento=session_data.get("documento"),
+                telegram_id=str(telegram_id),
+                telefono=session_data.get("telefono"),
+                direccion_beneficiario=session_data.get("direccion_beneficiario"),
+                edad=session_data.get("edad"),
+            )
+            solicitante.save()
+            logger.info(f"[{telegram_id}] Usuario creado: {solicitante.id}")
+            return solicitante
+        except IntegrityError as e:
+            logger.error(f"[{telegram_id}] IntegrityError al crear usuario: {e}")
+            raise
+
 
     def update_user(self, solicitante: stock_models.Solicitante, session_data: Dict[str, Any]) -> bool:
         changed = False
@@ -897,7 +902,7 @@ class BotController:
                 f"👤 <b>Nombre:</b> {text}\n\n"
                 "¿Los datos son correctos?",
                 reply_markup=ReplyKeyboardMarkup(
-                    [[KeyboardButton("Sí, continuar ✅"), KeyboardButton("No, corregir ✏️")]],
+                    [[KeyboardButton("Corregir ✏️"), KeyboardButton("Sí, continuar ✅")]],
                     one_time_keyboard=True, selective=True
                 )
             )

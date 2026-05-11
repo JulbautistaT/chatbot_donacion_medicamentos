@@ -108,8 +108,7 @@ class Solicitante(models.Model):
     telegram_id = models.CharField(
         max_length=50,
         blank=True,
-        null=True,
-        unique=True,                          
+        null=True,                        
         help_text='ID de Telegram del solicitante'
     )
     telefono = models.CharField(

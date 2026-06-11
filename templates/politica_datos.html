@@ -1,7 +1,402 @@
-<header class="header">
-    <h1>{{ politica.titulo }}</h1>
-    <p class="subtitle">Versión {{ politica.version }} - {{ politica.fecha_vigencia }}</p>
-</header>
-<main>
-    {{ politica.contenido_html|safe }}
-</main>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Política de Tratamiento de Datos Personales del Sistema de Donación de Medicamentos. Conozca cómo protegemos su información general y médica de acuerdo con la Ley 1581 de 2012 en Colombia.">
+    <title>{{ politica.titulo }} | Donación de Medicamentos</title>
+    
+    <!-- Google Fonts: Inter (for body) & Outfit (for headings) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* CSS Reset & Variable Tokens */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #0284c7;
+            --primary-light: #e0f2fe;
+            --primary-dark: #0369a1;
+            --primary-gradient: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --text-light: #f8fafc;
+            
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-border: rgba(255, 255, 255, 0.7);
+            --border-color: #cbd5e1;
+            
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
+            --shadow-md: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
+            --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 10px 10px -5px rgba(15, 23, 42, 0.06);
+            
+            --radius-sm: 8px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-main);
+            line-height: 1.7;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header Styling */
+        .top-navbar {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .brand-logo {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            transition: var(--transition-smooth);
+        }
+
+        .brand-logo:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .brand-logo .logo-icon {
+            font-size: 1.5rem;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition-smooth);
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+            background-color: var(--primary-light);
+        }
+
+        /* Hero Banner Styling */
+        .hero-banner {
+            background: var(--primary-gradient);
+            color: var(--text-light);
+            padding: 4rem 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .hero-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .hero-banner-content {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .badge-status {
+            background-color: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: var(--text-light);
+            padding: 0.4rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            animation: fadeInDown 0.5s ease-out;
+        }
+
+        .hero-banner h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-banner .meta-info {
+            font-size: 1rem;
+            opacity: 0.95;
+            font-weight: 400;
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .meta-info span {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        /* Linear Layout Container */
+        .linear-container {
+            max-width: 850px;
+            margin: 3rem auto;
+            padding: 0 1.5rem;
+            flex-grow: 1;
+            width: 100%;
+        }
+
+        /* Content Card Styling */
+        .content-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 3.5rem;
+            box-shadow: var(--shadow-lg);
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        /* Generic Typography and Layout Styling inside the Policy Content */
+        .content-card h1,
+        .content-card h2,
+        .content-card h3,
+        .content-card h4 {
+            font-family: 'Outfit', sans-serif;
+            color: var(--primary-dark);
+            margin-top: 2.2rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .content-card h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 0.5rem;
+        }
+
+        .content-card h2 {
+            font-size: 1.6rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-top: 2.5rem;
+        }
+
+        .content-card h3 {
+            font-size: 1.25rem;
+            margin-top: 1.5rem;
+        }
+
+        .content-card p {
+            font-size: 1.05rem;
+            color: var(--text-main);
+            margin-bottom: 1.25rem;
+            text-align: justify;
+        }
+
+        .content-card ul, 
+        .content-card ol {
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+        }
+
+        .content-card li {
+            font-size: 1.02rem;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            padding-left: 0.25rem;
+        }
+
+        .content-card strong {
+            color: #0f172a;
+            font-weight: 600;
+        }
+
+        .content-card a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: var(--transition-smooth);
+            border-bottom: 1px dashed var(--primary);
+            padding-bottom: 1px;
+        }
+
+        .content-card a:hover {
+            color: var(--primary-dark);
+            border-bottom-style: solid;
+        }
+
+        .content-card hr {
+            border: 0;
+            height: 1px;
+            background: linear-gradient(to right, transparent, var(--border-color) 20%, var(--border-color) 80%, transparent);
+            margin: 2rem 0;
+        }
+
+        /* First section should not have top margin */
+        .content-card > *:first-child {
+            margin-top: 0 !important;
+        }
+
+        /* Footer */
+        footer {
+            background-color: #0f172a;
+            color: #94a3b8;
+            padding: 3rem 2rem;
+            text-align: center;
+            border-top: 1px solid #1e293b;
+            margin-top: auto;
+        }
+
+        footer p {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        footer .links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        footer a {
+            color: #cbd5e1;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: var(--transition-smooth);
+        }
+
+        footer a:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+
+        /* Keyframes */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 768px) {
+            .hero-banner h1 {
+                font-size: 2rem;
+            }
+            
+            .content-card {
+                padding: 2rem;
+                border-radius: var(--radius-md);
+            }
+
+            .content-card h2 {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <header class="top-navbar">
+        <a href="https://t.me/donacion_medicamentos_bot" class="brand-logo" id="nav-brand">
+            <span class="logo-icon">💊</span>
+            <span>SaludDonar Bot</span>
+        </a>
+        <nav class="nav-links">
+            <a href="https://t.me/donacion_medicamentos_bot" id="nav-back-bot">Regresar al Bot de Telegram</a>
+        </nav>
+    </header>
+
+    <!-- Hero Banner -->
+    <section class="hero-banner">
+        <div class="hero-banner-content">
+            <span class="badge-status">Documento Oficial</span>
+            <h1 id="policy-main-title">{{ politica.titulo }}</h1>
+            <div class="meta-info">
+                <span>📋 Versión: <strong>{{ politica.version }}</strong></span>
+                <span>📅 Vigencia desde: <strong>{{ politica.fecha_vigencia|date:"d \d\e F \d\e Y" }}</strong></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Container -->
+    <div class="linear-container">
+        <!-- Document Content -->
+        <main class="content-card" id="policy-content-body">
+            {{ politica.contenido_html|safe }}
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p><strong>Sistema de Donación de Medicamentos</strong> — Plataforma Solidaria</p>
+        <p>En cumplimiento con la Ley 1581 de 2012 de la República de Colombia.</p>
+    </footer>
+
+</body>
+</html>

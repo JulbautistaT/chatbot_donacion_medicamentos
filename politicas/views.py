@@ -1,4 +1,4 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404  # pylint: disable=import-error
 from .models import PoliticaDatos
 
 def politica_datos(request):

@@ -1,6 +1,7 @@
+from datetime import date
 from django.db import models
 from django.utils import timezone
-from datetime import date
+
 
 class PoliticaDatos(models.Model):
     version = models.CharField(max_length=10, unique=True)

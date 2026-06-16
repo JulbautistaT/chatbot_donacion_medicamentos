@@ -1,7 +1,10 @@
 from django.contrib import admin
+from django.contrib.auth.models import Group
 from stock import models as stock_models
 from stock.actions import solicitud as solicitud_actions
 from stock.actions import plantilla_pdf as pdf_actions
+
+
 
 
 @admin.register(stock_models.DetalleSolicitud)
@@ -123,3 +126,43 @@ class SolicitudFormulaAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description='OCR extraído')
     def tiene_ocr(self, obj):
         return bool(obj.texto_ocr)
+
+
+# No mostrar Group 
+admin.site.unregister(Group)
+
+# Personalizacion visual del admin
+
+_original_get_app_list = admin.site.get_app_list
+
+def custom_get_app_list(request, app_label=None):
+    app_list = _original_get_app_list(request, app_label)
+
+    ocultar = {
+        'django_celery_beat',
+        'django_celery_results',
+    }
+
+    app_list = [
+        app for app in app_list
+        if app['app_label'] not in ocultar
+    ]
+
+    orden = {
+        'stock': 1,
+        'anuncios': 2,
+        'politicas': 3,
+        'auth': 4,
+    }
+
+    app_list.sort(
+        key=lambda app: orden.get(app['app_label'], 99)
+    )
+
+    return app_list
+
+admin.site.get_app_list = custom_get_app_list
+
+admin.site.site_header = "Panel de Control - Donación de Medicamentos"
+admin.site.site_title = "Administración"
+admin.site.index_title = "Sistema de Gestión"

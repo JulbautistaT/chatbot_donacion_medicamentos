@@ -32,8 +32,8 @@ class Anuncio(models.Model):
     )
 
     class Meta:
-        verbose_name = 'Anuncio'
-        verbose_name_plural = 'Anuncios'
+        verbose_name = 'Aviso'
+        verbose_name_plural = 'Avisos'
         ordering = ['-fecha_anuncio']
     
     def __str__(self):

@@ -1,0 +1,61 @@
+{% extends "admin/change_list.html" %}
+
+{% block content_title %}
+
+{% if descripcion %}
+
+<details open style="
+    margin-bottom:15px;
+    background:#f6fff8;
+    border-left:4px solid #417690;
+    padding:12px;
+    border-radius:4px;
+">
+
+    <summary style="
+        cursor:pointer;
+        font-weight:bold;
+        font-size:1.05em;
+    ">
+        Información de esta sección
+    </summary>
+
+    <br>
+
+    <strong>¿Qué encontrará aquí?</strong>
+    <p>{{ descripcion }}</p>
+
+    {% if que_puede_hacer %}
+    <strong>¿Qué puede hacer aquí?</strong>
+    <ul>
+        {% for item in que_puede_hacer %}
+            <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if acciones %}
+    <strong>Acciones disponibles</strong>
+    <ul>
+        {% for accion in acciones %}
+            <li>{{ accion }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if consideraciones %}
+    <strong>Consideraciones importantes</strong>
+    <ul>
+        {% for consideracion in consideraciones %}
+            <li>{{ consideracion }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+</details>
+
+{% endif %}
+
+{{ block.super }}
+
+{% endblock %}

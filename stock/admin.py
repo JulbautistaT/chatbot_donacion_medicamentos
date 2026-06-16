@@ -5,14 +5,51 @@ from stock.actions import solicitud as solicitud_actions
 from stock.actions import plantilla_pdf as pdf_actions
 
 
-
-
 @admin.register(stock_models.DetalleSolicitud)
 class DetalleSolicitudAdmin(admin.ModelAdmin):
     list_display = ('solicitud', 'medicamento', 'cantidad_entregada')
     search_fields = ('solicitud__solicitante__nombre', 'medicamento__nombre_comercial')
     list_filter = ('solicitud', 'medicamento')
     raw_id_fields = ('solicitud', 'medicamento')
+
+    def has_add_permission(self, request):
+        return False
+
+    change_list_template = "admin/change_list.html"
+
+    DESCRIPCION = (
+        "Aquí se muestra el detalle de los medicamentos asociados a cada solicitud. "
+        "Cada registro indica qué medicamento fue solicitado y la cantidad entregada."
+    )
+
+    QUE_PUEDE_HACER = [
+        "Consultar los medicamentos asociados a una solicitud.",
+        "Ver las cantidades entregadas para cada medicamento.",
+        "Buscar información específica mediante filtros y búsquedas."
+    ]
+
+    ACCIONES = [
+        "Eliminar registros seleccionados."
+    ]
+
+    CONSIDERACIONES = [
+        "La información de esta sección se genera automáticamente a partir de las solicitudes registradas en el sistema.",
+        "No se recomienda crear registros manualmente salvo en casos excepcionales."
+    ]
+
+    def changelist_view(self, request, extra_context=None):
+
+        extra_context = extra_context or {}
+
+        extra_context["descripcion"] = self.DESCRIPCION
+        extra_context["que_puede_hacer"] = self.QUE_PUEDE_HACER
+        extra_context["acciones"] = self.ACCIONES
+        extra_context["consideraciones"] = self.CONSIDERACIONES
+
+        return super().changelist_view(
+            request,
+            extra_context=extra_context
+        )
 
 
 @admin.register(stock_models.Entrega)

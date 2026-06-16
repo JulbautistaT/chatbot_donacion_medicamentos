@@ -1,0 +1,9 @@
+[MASTER]
+# Carga el plugin de Django (requiere haber hecho el pip install de la Solución 1)
+load-plugins=pylint_django
+
+[MESSAGES CONTROL]
+# Aquí puedes silenciar códigos específicos separados por comas si siguen molestando
+# E0611: No name 'utils' in module 'django' (falsos positivos de importación)
+# E1101: Instance of 'X' has no 'objects' member (el clásico error de Django)
+disable=E0611,E1101,C0114,C0115,C0116, E0401, E0013

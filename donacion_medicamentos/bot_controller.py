@@ -32,7 +32,6 @@ class SessionSteps:
     REQ_NAME = "REQUEST_NAME"
     REQ_PHONE = "REQUEST_PHONE"
     REQ_ADDRESS = "REQUEST_ADDRESS"
-    REQ_AGE = "REQUEST_AGE"
     REQ_CONFIRM_DATA = "REQUEST_CONFIRM_DATA"
     KNOWN_USER = "KNOWN_USER"
     REQ_MEDICATIONS = "REQUEST_MEDICATIONS"
@@ -212,7 +211,6 @@ class BotController:
                 "documento": documento,
                 "nombre": None,
                 "direccion_beneficiario": None,
-                "edad": None,
                 "medication_count": 0,
                 "photos_uploaded": 0,
                 "ocr_attempts": 0,
@@ -306,7 +304,6 @@ class BotController:
                 telegram_id=str(telegram_id),
                 telefono=session_data.get("telefono"),
                 direccion_beneficiario=session_data.get("direccion_beneficiario"),
-                edad=session_data.get("edad"),
             )
             solicitante.save()
             logger.info(f"[{telegram_id}] Usuario creado: {solicitante.id}")
@@ -318,7 +315,7 @@ class BotController:
 
     def update_user(self, solicitante: stock_models.Solicitante, session_data: Dict[str, Any]) -> bool:
         changed = False
-        for field in ("nombre", "direccion_beneficiario", "edad"):
+        for field in ("nombre", "direccion_beneficiario", "telefono"):
             val = session_data.get(field)
             if val is not None and getattr(solicitante, field) != val:
                 setattr(solicitante, field, val)
@@ -724,13 +721,13 @@ class BotController:
                     "documento": solicitante.documento,
                     "nombre": solicitante.nombre,
                     "direccion_beneficiario": solicitante.direccion_beneficiario,
-                    "edad": solicitante.edad,
+                    "telefono": solicitante.telefono,
                 })
                 first_name = solicitante.nombre.split()[0] if solicitante.nombre else "Usuario"
                 await update.message.reply_html(
                     f"👋 ¡Hola {first_name}! He verificado tu documento {document_number}.\n\n"
                     "¿Los siguientes datos están correctos?\n"
-                    f"<b>Edad:</b> {solicitante.edad}\n"
+                    f"<b>Teléfono:</b> {solicitante.telefono}\n"
                     f"<b>Dirección:</b> {solicitante.direccion_beneficiario}\n\n"
                     "Si todo está correcto, presiona <b>Sí, correcto ✅</b> para continuar.",
                     reply_markup=ReplyKeyboardMarkup(
@@ -849,7 +846,6 @@ class BotController:
                     "documento": solicitante.documento,
                     "nombre": solicitante.nombre,
                     "direccion_beneficiario": solicitante.direccion_beneficiario,
-                    "edad": solicitante.edad,
                     "documento_relink": None,
                 })
                 first_name = solicitante.nombre.split()[0] if solicitante.nombre else "Usuario"
@@ -948,25 +944,7 @@ class BotController:
                 )
                 return
             logger.info(f"[{telegram_id}] Teléfono recibido: {phone_clean}")
-            self.__update_session(telegram_id, SessionSteps.REQ_AGE, {"telefono": phone_clean})
-            await update.message.reply_text(
-                "🎂 ¡Genial! Ahora escribe la <b>edad</b> de la persona que necesita los medicamentos.",
-                reply_markup=ForceReply(selective=True),
-                parse_mode="HTML",
-            )
-            return        
-
-        # ── REQ_AGE ───
-        if step == SessionSteps.REQ_AGE:
-            if not text.isdigit():
-                await update.message.reply_text(
-                    "Por favor escribe una edad válida (número entero).",
-                    reply_markup=ForceReply(selective=True)
-                )
-                return
-            age = int(text)
-            logger.info(f"[{telegram_id}] Edad recibida: {age}")
-            self.__update_session(telegram_id, SessionSteps.REQ_ADDRESS, {"edad": age})
+            self.__update_session(telegram_id, SessionSteps.REQ_ADDRESS, {"telefono": phone_clean})
             await update.message.reply_text(
                 "🏠 ¡Genial! Ahora, por favor escribe la <b>dirección</b> de la persona que necesita los medicamentos.\n\n"
                 "Ejemplo: <code>Calle 123 #45-67, Barrio Centro</code>",
@@ -994,8 +972,8 @@ class BotController:
                 f"✅ ¡Registro completado!\n\n"
                 f"🙋‍♂️ <b>Nombre:</b> {solicitante.nombre}\n"
                 f"🆔 <b>Documento:</b> {solicitante.documento}\n"
+                f"📱 <b>Teléfono:</b> {solicitante.telefono}\n"
                 f"🏠 <b>Dirección:</b> {solicitante.direccion_beneficiario}\n"
-                f"🎂 <b>Edad:</b> {solicitante.edad}\n\n"
                 "¿Qué deseas hacer ahora?",
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton("💊 Solicitar medicamentos"), KeyboardButton("📋 Consultar solicitudes")]],
@@ -1036,10 +1014,10 @@ class BotController:
                 )
                 return
             if text_lower.startswith("no") or "corregir" in text_lower:
-                self.__update_session(telegram_id, SessionSteps.REQ_AGE, {})
+                self.__update_session(telegram_id, SessionSteps.REQ_PHONE, {})
                 await update.message.reply_text(
-                    "Entendido. Vamos a actualizar tu información. 🔄\n\n"
-                    "🎂 Por favor escribe la <b>edad</b> de la persona que necesita los medicamentos.",
+                    "📱 Vamos a actualizar tu información.\n\n"
+                    "Por favor escribe tu número de teléfono.",
                     reply_markup=ForceReply(selective=True),
                     parse_mode="HTML"
                 )

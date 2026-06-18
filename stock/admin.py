@@ -53,12 +53,6 @@ class EntregaAdmin(AdminConAyuda):
     raw_id_fields = ('solicitud',)
     actions = ['generar_acta']
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        solicitud = obj.solicitud
-        solicitud.estado = stock_models.Solicitud.Estado.ENTREGADA
-        solicitud.save()
-
     @admin.action(description='Generar acta de entrega (PDF)')
     def generar_acta(self, request, queryset):
         pendientes = queryset.filter(acta_generada=False)
@@ -72,6 +66,8 @@ class EntregaAdmin(AdminConAyuda):
         solicitudes = stock_models.Solicitud.objects.filter(entrega__in=pendientes)
         response = pdf_actions.generar_acta_entrega(solicitudes)
         pendientes.update(acta_generada=True)
+
+        solicitudes.update(estado=stock_models.Solicitud.Estado.ENTREGADA)
         return response
 
     def has_add_permission(self, request):
@@ -225,8 +221,7 @@ class SolicitudAdmin(AdminConAyuda):
         "Verifique cuidadosamente y actualice la información antes de cambiar el estado de una solicitud.",
         "Las notificaciones por Telegram solo se enviarán a las solicitudes aceptadas.",
         "Solo las solicitudes aceptadas podrán generar registros de entrega y actas de entrega.",
-        "La información descargada en formato CSV puede utilizarse para seguimiento y auditoría.",
-        "Después de realizar la entrega de medicamentos, recuerde actualizar el estado de la solicitud a 'Entregada'."
+        "La información descargada en formato CSV puede utilizarse para seguimiento y auditoría."
     ]
 
 

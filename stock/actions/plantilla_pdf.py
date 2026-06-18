@@ -145,6 +145,8 @@ def generar_acta_entrega(queryset):
     data = [[
         Paragraph("Fecha", style_header_col),
         Paragraph("Nombre completo", style_header_col),
+        Paragraph("Cantidad", style_header_col),
+        Paragraph("Presentación", style_header_col),        
         Paragraph("Medicamento", style_header_col),
         Paragraph("Teléfono", style_header_col),
         Paragraph("Firma", style_header_col),
@@ -165,6 +167,14 @@ def generar_acta_entrega(queryset):
                     style_cell
                 ),
                 Paragraph(
+                    str(detalle.cantidad_entregada or ""),
+                    style_cell
+                ),
+                Paragraph(
+                    detalle.get_tipo_presentacion_display() or "",
+                    style_cell
+                ),
+                Paragraph(
                     f"{detalle.medicamento.nombre_comercial} "
                     f"{detalle.medicamento.concentracion}",
                     style_cell
@@ -182,7 +192,16 @@ def generar_acta_entrega(queryset):
 
     table = Table(
         data,
-        colWidths=[80, 170, 220, 100, 100, 100],
+        colWidths=[
+            60,   # Fecha
+            130,  # Nombre
+            50,   # Cantidad
+            100,  # Presentación
+            160,  # Medicamento
+            70,   # Teléfono
+            75,   # Firma
+            60    # Fórmula
+        ],
         repeatRows=1
     )
 
@@ -199,8 +218,29 @@ def generar_acta_entrega(queryset):
 
     elements.append(table)
 
+    elements.append(
+    HRFlowable(
+        width="100%",
+        thickness=0.5,
+        color=colors.grey
+    )
+    )
+
+    elements.append(Spacer(1, 15))
+
+    texto_datos = """
+    Al firmar la presente plantilla, el beneficiario certifica haber recibido los medicamentos relacionados anteriormente en las cantidades indicadas y declara la aceptación de la Política de Tratamiento de Datos Personales, disponible para consulta en el sitio web ---. La firma de este documento constituye constancia de recepción y aceptación de las condiciones aquí descritas.
+    """
+
+    elements.append(
+        Paragraph(
+            texto_datos,
+            style_info
+        )
+    )
 
     elements.append(Spacer(1, 20))
+
     elements.append(
         Paragraph(
             "EL AGUA ES VIDA, APRECIÉMOSLA, NO LA DERROCHEMOS",

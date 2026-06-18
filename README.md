@@ -1,302 +1,218 @@
 # Sistema de Donación de Medicamentos
 
-Un sistema web completo para la gestión de donaciones y solicitudes de medicamentos, desarrollado con Django y integrado con un bot de Telegram para facilitar las solicitudes.
+<p align="center">
+  <img src="https://img.shields.io/badge/Estado-En%20Desarrollo-orange?style=for-the-badge&logo=git" alt="Estado: En Desarrollo">
+  <img src="https://img.shields.io/badge/Django-5.2-092E20?style=for-the-badge&logo=django" alt="Django version">
+  <img src="https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python version">
+  <img src="https://img.shields.io/badge/Telegram_Bot-22.1-26A69A?style=for-the-badge&logo=telegram" alt="Telegram Bot version">
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker" alt="Docker version">
+  <img src="https://img.shields.io/badge/Licencia-MIT-green?style=for-the-badge" alt="Licencia MIT">
+</p>
 
-## Características
+---
 
-- 🏥 **Gestión de Inventario**: Control completo de medicamentos donados con fechas de vencimiento y lotes
-- 👥 **Gestión de Usuarios**: Registro y manejo de donantes y solicitantes
-- 📋 **Solicitudes Inteligentes**: Sistema de solicitudes con validación de stock automática
-- 🤖 **Bot de Telegram**: Interfaz conversacional para solicitudes de medicamentos
-- 📊 **Panel Administrativo**: Interface web completa para la gestión del sistema
-- 🔄 **Procesamiento Asíncrono**: Manejo de tareas con Celery y Redis
-- 📁 **Gestión de Archivos**: Upload y manejo de fórmulas médicas
-- 🔒 **Validaciones**: Control de inventario y auditoría automática
+## 📝 Descripción del Proyecto
 
-## Tecnologías
+Este es un sistema web integral y conversacional diseñado para optimizar y gestionar la donación y solicitud de medicamentos. Combina un robusto panel administrativo y API en Django con una interfaz interactiva de Telegram Bot que asiste a los usuarios solicitantes. 
 
-- **Backend**: Django 4.x, Python 3.10
-- **Base de Datos**: SQLite (configurable a PostgreSQL/MySQL)
-- **Cola de Tareas**: Celery + Redis
-- **Bot**: python-telegram-bot
-- **Servidor Web**: Gunicorn + Nginx
-- **Contenedores**: Docker + Docker Compose
+El proyecto fue reestructurado para ofrecer un entorno seguro, escalable y con herramientas avanzadas para la automatización de flujos médicos, incluyendo procesamiento de recetas por OCR, auditoría física mediante actas de entrega en PDF y control de caducidad.
 
-## Estructura del Proyecto
+---
+
+## 🚧 Estado del Proyecto
+> [!NOTE]
+> **Fase Actual:** **En Desarrollo**. 
+> Se están implementando y refinando módulos conversacionales, pruebas del pipeline de OCR adaptativo y ajustes de seguridad en el entorno local.
+
+---
+
+## 📌 Índice
+
+1. [Características Destacadas](#-características-destacadas)
+2. [Arquitectura del Proyecto](#-arquitectura-del-proyecto)
+3. [Tecnologías Utilizadas](#-tecnologías-utilizadas)
+4. [Instalación y Configuración](#-instalación-y-configuración)
+   - [Prerrequisitos](#prerrequisitos)
+   - [Paso 1: Clonar y Preparar](#paso-1-clonar-y-preparar)
+   - [Paso 2: Variables de Entorno](#paso-2-variables-de-entorno)
+   - [Paso 3: Construcción y Despliegue](#paso-3-construcción-y-despliegue)
+   - [Paso 4: Base de Datos y Superusuario](#paso-4-base-de-datos-y-superusuario)
+5. [Uso del Sistema](#-uso-del-sistema)
+   - [Para el Administrador (Web)](#para-el-administrador-web)
+   - [Para el Solicitante (Telegram Bot)](#para-el-solicitante-telegram-bot)
+6. [Monitoreo y Logs](#-monitoreo-y-logs)
+7. [Créditos y Colaboradores](#-créditos-y-colaboradores)
+8. [Licencia](#-licencia)
+
+---
+
+## ✨ Características Destacadas
+
+### 📷 Procesamiento OCR Inteligente
+* **Pipeline Adaptativo:** El procesador realiza un análisis automático de calidad para decidir si aplica un preprocesamiento ligero o uno de rescate (mediante **OpenCV** y **Pillow**) ante imágenes oscuras o rotadas.
+* **Extracción de Fórmulas:** Permite leer formatos PDF e imágenes (PNG/JPG) con recetas médicas mediante **Tesseract OCR**, automatizando la validación de medicamentos contra las solicitudes.
+
+### 🤖 Bot de Telegram Multiusuario
+* **Seguridad y Persistencia de Sesión:** Mantiene de forma segura el contexto de cada usuario permitiendo flujos de conversación estables y simultáneos para múltiples solicitantes.
+* **Inicio y Cierre de Sesión:** Notificaciones claras al usuario sobre el estado de su sesión y el resguardo de su información.
+* **Soporte Multimedia:** Capacidad de procesar múltiples archivos cargados de forma sucesiva por chat.
+
+### 📋 Gestión de Inventario, Expiración y Auditoría
+* **Alertas de Caducidad:** Sistema de avisos automatizados que detecta medicamentos próximos a vencer para agilizar su donación.
+* **Actas de Entrega Físicas (PDF):** Generación automática de plantillas oficiales en formato PDF (usando **ReportLab**) preparadas para impresión física y firma manuscrita de los usuarios al recibir los insumos.
+* **Control de Duplicación:** El sistema bloquea de manera inteligente la generación de actas duplicadas para garantizar la transparencia del inventario.
+
+### 🔒 Políticas de Datos y Consentimiento
+* **Módulo de Políticas:** Mantenimiento de versiones de la política de datos (`politicas` app), garantizando que los usuarios presten su consentimiento explícito de manera transparente antes de usar el chatbot.
+
+---
+
+## 📁 Arquitectura del Proyecto
 
 ```
 donacion_medicamentos/
-├── api/                    # API REST endpoints
-├── donacion_medicamentos/  # Configuración principal de Django
-├── stock/                  # Modelos y lógica de negocio principal
-│   ├── models.py          # Modelos de datos
-│   ├── admin.py           # Configuración del admin
-│   ├── signals.py         # Señales para control de inventario
-│   └── actions/           # Acciones personalizadas
-├── media/                 # Archivos subidos (fórmulas, fotos)
-├── static/                # Archivos estáticos
-├── templates/             # Plantillas HTML
-├── nginx/                 # Configuración de Nginx
-├── logs/                  # Logs de la aplicación
-├── docker-compose.yml     # Configuración de servicios
-├── Dockerfile            # Imagen de contenedor
-├── requirements.txt      # Dependencias de Python
-└── manage.py             # Comando de gestión de Django
+├── anuncios/               # Módulo de avisos de disponibilidad
+├── api/                    # Endpoints de la API REST del sistema
+├── donacion_medicamentos/  # Configuración y controladores principales (Django/Bot)
+│   ├── bot_controller.py   # Control de estados y lógica conversacional del Bot
+│   ├── ocr.py              # Procesador y pipeline adaptativo de OCR
+│   └── settings.py         # Configuración del entorno Django
+├── politicas/              # Gestión de versión y vigencia de políticas de tratamiento de datos
+├── stock/                  # Lógica de negocio principal (Medicamentos, Solicitudes, Entregas)
+│   ├── actions/
+│   │   └── plantilla_pdf.py # Motor de renderizado de actas PDF (ReportLab)
+│   ├── models.py           # Estructura relacional de datos
+│   └── admin.py            # Interfaces y acciones personalizadas en el Panel Admin
+├── templates/              # Plantillas HTML
+├── utils/                  # Scripts de utilidad (ej. poblar base de datos)
+├── nginx/                  # Configuración de Servidor Web Nginx
+├── docker-compose.yml      # Declaración de servicios (Django, Bot, Redis, Postgres)
+├── Dockerfile              # Configuración del contenedor de la aplicación
+└── requirements.txt        # Dependencias de Python del proyecto
 ```
 
-## Instalación y Configuración
+---
+
+## 🛠️ Tecnologías Utilizadas
+
+* **Framework Principal:** [Django 5.2](https://www.djangoproject.com/)
+* **Lenguaje:** [Python 3.10](https://www.python.org/)
+* **Base de Datos:** [SQLite](https://www.sqlite.org/) (Por defecto para desarrollo) | [PostgreSQL](https://www.postgresql.org/) (Soportado mediante variables de entorno)
+* **Motor Asíncrono y Mensajería:** [Celery](https://docs.celeryq.dev/) + [Redis](https://redis.io/)
+* **Integración Conversacional:** [python-telegram-bot 22.1](https://python-telegram-bot.org/)
+* **Procesamiento de Imágenes y Documentos (OCR):** [pytesseract](https://github.com/madmaze/pytesseract) + [opencv-python](https://opencv.org/) + [pdf2image](https://github.com/Belval/pdf2image)
+* **Generación de Reportes PDF:** [ReportLab](https://www.reportlab.com/)
+* **Servidor Web y Despliegue:** [Gunicorn](https://gunicorn.org/) + [Nginx](https://www.nginx.com/) + [Docker & Docker Compose](https://www.docker.com/)
+
+---
+
+## 🚀 Instalación y Configuración
 
 ### Prerrequisitos
+* **Docker** y **Docker Compose** instalados en tu sistema.
+* Un token de bot de Telegram obtenido a través de [@BotFather](https://t.me/BotFather).
 
-- Docker y Docker Compose instalados
-- Un bot de Telegram creado (obtén el token desde [\@BotFather](https://telegram.me/BotFather)).
-
-### 1. Clonar el repositorio
-
+### Paso 1: Clonar y Preparar
+Clona este repositorio en tu máquina local:
 ```bash
-git clone <repository-url>
-cd donacion_medicamentos
+git clone https://github.com/JulbautistaT/chatbot.git
+cd donacion-medicamentos-master
 ```
 
-### 2. Configurar variables de entorno
-
+### Paso 2: Variables de Entorno
+Copia el archivo muestra y edita los valores correspondientes:
 ```bash
-# Copiar el archivo de configuración de ejemplo
 cp .env.sample .env
-
-# Editar el archivo .env con tus valores
-nano .env
 ```
 
-**Variables importantes a configurar:**
+Abre el archivo `.env` y configura al menos los siguientes parámetros obligatorios:
 
-```bash
-# Token de tu bot de Telegram
-TELEGRAM_BOT_TOKEN='tu-token-aqui'
-
-# Configuración de Django
-DJANGO_SECRET_KEY='tu-clave-secreta'
+```env
+TELEGRAM_BOT_TOKEN='tu-token-de-telegram'
+DJANGO_SECRET_KEY='una-clave-secreta-segura'
 DJANGO_ALLOWED_HOSTS='localhost,127.0.0.1'
-DJANGO_CSRF_TRUSTED_ORIGINS='http://localhost:81'
 
-# Host para archivos media
-MEDIA_HOST='http://localhost:8000'
+# Opcional si decides usar PostgreSQL
+# DB_NAME='nombre_bd'
+# DB_USER='usuario_bd'
+# DB_PASSWORD='password_bd'
+# DB_HOST='db'
 ```
 
-### 3. Construir la imagen Docker
-
+### Paso 3: Construcción y Despliegue
+Construye la imagen Docker del backend:
 ```bash
 docker build -t donacion_medicamentos-backend:1.0.0 .
 ```
 
-### 4. Iniciar los servicios
-
+Inicia todos los servicios del proyecto:
 ```bash
-# Iniciar todos los servicios
 docker-compose up -d
-
-# Ver los logs
-docker-compose logs -f
 ```
+> [!TIP]
+> Puedes comprobar que todos los servicios estén corriendo usando: `docker-compose ps`
 
-### 5. Configurar la base de datos
-
-```bash
-# Ejecutar migraciones
-docker-compose exec donacion_medicamentos python manage.py migrate
-docker-compose exec donacion_medicamentos python manage.py make migrations
-
-# Crear superusuario para el admin
-docker-compose exec donacion_medicamentos python manage.py createsuperuser
-
-# (Opcional) Cargar datos de prueba
-docker-compose exec donacion_medicamentos python utils/poblar_db.py
-```
-
-## Servicios Disponibles
-
-Una vez iniciado el sistema, tendrás acceso a:
-
-### 🌐 **Aplicación Web** 
-- **URL**: http://localhost:81
-- **Admin**: http://localhost:81/admin
-- Gestión completa de donaciones, solicitudes y medicamentos
-
-### 🤖 **Bot de Telegram**
-- Busca tu bot en Telegram usando el nombre configurado
-- Comando inicial: `/iniciar`
-- Permite crear solicitudes de medicamentos de forma conversacional
-
-### 📊 **API REST**
-- **Base URL**: http://localhost:81/api/
-- Endpoints para integración con otros sistemas
-
-## Uso del Sistema
-
-### Para Administradores
-
-1. **Accede al panel admin**: http://localhost:81/admin
-2. **Gestiona Donantes**: Registra organizaciones y personas que donan
-3. **Registra Donaciones**: Añade medicamentos recibidos con lotes y fechas
-4. **Procesa Solicitudes**: Revisa y aprueba solicitudes de medicamentos
-5. **Controla Inventario**: El sistema mantiene automáticamente el stock
-
-### Para Solicitantes (Telegram)
-
-1. **Inicia conversación**: Envía `/iniciar` a tu bot
-2. **Registro inicial**: Proporciona documento, nombre, telefono y dirección
-3. **Solicita medicamentos**: Elige entre:
-   - Descripción manual de medicamentos
-   - Subir foto/PDF de fórmula médica
-4. **Seguimiento**: Consulta estado con "Consultar estado"
-
-### Validaciones de Negocio
-
-- **Stock insuficiente**: Impide entregar más medicamentos de los disponibles
-- **Límites de solicitud**: No permite entregar más de lo solicitado
-- **Fechas de vencimiento**: Control FIFO (primero en vencer, primero en salir)
-- **Estados consistentes**: Transiciones automáticas de estados
-
-### Bot Inteligente
-
-- **Sesiones persistentes**: Mantiene el contexto de la conversación
-- **Validación en tiempo real**: Verifica datos mientras el usuario los ingresa
-- **Búsqueda por letra**: Facilita encontrar medicamentos disponibles
-- **Múltiples formatos**: Acepta fotos, PDFs y texto
-
-## Comandos Útiles
-
-### Gestión de Contenedores
-
-```bash
-# Ver estado de los servicios
-docker-compose ps
-
-# Detener todos los servicios
-docker-compose down
-
-# Reiniciar un servicio específico
-docker-compose restart donacion_medicamentos
-
-# Ver logs de un servicio
-docker-compose logs -f telegram_bot
-```
-
-### Gestión de Django
-
-```bash
-# Ejecutar comandos de Django
-docker-compose exec donacion_medicamentos python manage.py <comando>
-
-# Crear migraciones
-docker-compose exec donacion_medicamentos python manage.py makemigrations
-
-# Aplicar migraciones
-docker-compose exec donacion_medicamentos python manage.py migrate
-
-# Shell de Django
-docker-compose exec donacion_medicamentos python manage.py shell
-```
-
-### Gestión de la Base de Datos
-
-```bash
-# Backup de la base de datos
-docker-compose exec donacion_medicamentos python manage.py dumpdata > backup.json
-
-# Restaurar desde backup
-docker-compose exec donacion_medicamentos python manage.py loaddata backup.json
-```
-
-## Estructura de la Base de Datos
-
-### Modelos Principales
-
-- **Solicitante**: Personas que solicitan medicamentos
-- **Donante**: Organizaciones/personas que donan
-- **Medicamento**: Catálogo de medicamentos
-- **Donación**: Registro de donaciones recibidas
-- **MedicamentoDonado**: Stock específico con lotes y fechas
-- **Solicitud**: Solicitudes de medicamentos
-- **DetalleSolicitud**: Detalle de medicamentos por solicitud
-- **Entrega**: Registro de entregas realizadas
-- **Formula**: Archivos de fórmulas médicas
-
-## Monitoreo y Logs
-
-Los logs se almacenan en la carpeta `logs/`:
-
-```bash
-# Ver logs de la aplicación
-tail -f logs/donacion_medicamentos.log
-
-# Ver logs del bot
-docker-compose logs -f telegram_bot
-
-# Ver logs de Celery
-docker-compose logs -f celery
-```
-
-## Solución de Problemas
-
-### El bot no responde
-
-1. Verifica que el token de Telegram sea correcto
-2. Asegúrate de que el servicio `telegram_bot` esté ejecutándose
-3. Revisa los logs: `docker-compose logs -f telegram_bot`
-
-### Error de migraciones
-
-```bash
-# Aplicar migraciones específicas
-docker-compose exec donacion_medicamentos python manage.py migrate stock
-
-# Ver estado de migraciones
-docker-compose exec donacion_medicamentos python manage.py showmigrations
-```
-
-### Problemas de permisos
-
-```bash
-# Ajustar permisos de carpetas
-sudo chown -R $USER:$USER media/ static/ logs/
-```
-
-## Desarrollo
-
-### Agregar nuevas funcionalidades
-
-1. **Modifica modelos** en `stock/models.py`
-2. **Crea migraciones**: `python manage.py makemigrations`
-3. **Actualiza admin** en `stock/admin.py`
-4. **Añade validaciones** en `stock/signals.py`
-
-### Personalizar el bot
-
-El bot se encuentra en `donacion_medicamentos/bot_controller.py`. Puedes:
-- Añadir nuevos comandos
-- Modificar el flujo de conversación
-- Integrar nuevas funcionalidades
-
-## Contribución
-
-1. Fork del proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -am 'Añadir nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Crea un Merge Request
-
-## Licencia
-
-Este proyecto está licenciado bajo la Licencia MIT - ver el archivo LICENSE para detalles.
-
-## Soporte
-
-Para problemas y preguntas:
-- Crea un issue en el repositorio
-- Puedes contactar a @user5c
-- Consulta los logs para diagnóstico
+### Paso 4: Base de Datos y Superusuario
+1. Ejecuta las migraciones necesarias de Django:
+   ```bash
+   docker-compose exec donacion_medicamentos python manage.py migrate
+   docker-compose exec donacion_medicamentos python manage.py makemigrations
+   ```
+2. Crea el usuario administrador para el panel web:
+   ```bash
+   docker-compose exec donacion_medicamentos python manage.py createsuperuser
+   ```
+3. *(Opcional)* Carga datos iniciales de prueba en el inventario:
+   ```bash
+   docker-compose exec donacion_medicamentos python utils/poblar_db.py
+   ```
 
 ---
 
-**Nota**: Asegúrate de configurar correctamente las variables de entorno antes de iniciar el sistema en producción.
+## 💡 Uso del Sistema
+
+### Para el Administrador (Web)
+1. Ingresa a la interfaz administrativa en [http://localhost:81/admin](http://localhost:81/admin).
+2. Administra los **Medicamentos** 
+3. Procesa las **Solicitudes** entrantes.
+4. Genera las actas de entrega oficiales en formato PDF haciendo uso de las acciones personalizadas dentro del panel de **Entregas**. Recuerda imprimirlas para la firma física.
+
+### Para el Solicitante (Telegram Bot)
+1. Busca al bot en Telegram e inicia la conversación con el comando `/iniciar`.
+2. Acepta las políticas de datos del sistema.
+3. Registra tus datos básicos (Nombre, Documento, Teléfono, Dirección).
+4. Sube tu fórmula médica (en formato PDF o foto) para la extracción y validación automática del medicamento solicitado por OCR.
+5. Revisa el estado de tus solicitudes con el comando o botón **Consultar estado**.
+
+---
+
+## 📊 Monitoreo y Logs
+
+Puedes seguir la ejecución del bot de Telegram y de Celery en tiempo real a través de Docker:
+```bash
+# Ver logs del Bot de Telegram
+docker-compose logs -f telegram_bot
+
+# Ver logs de Django
+docker-compose logs -f donacion_medicamentos
+
+# Ver logs del gestor de tareas Celery
+docker-compose logs -f celery
+```
+
+---
+
+## 👥 Créditos y Colaboradores
+
+Agradecemos a quienes han hecho posible el desarrollo, diseño y evolución de esta plataforma:
+
+| Desarrollador | Rol y Contribuciones Clave |
+| :--- | :--- |
+| **Hernan Camilo Rivera Arteaga** | • Diseño de la arquitectura base del sistema.<br>• Desarrollo del MVP y primera versión funcional del bot de Telegram. |
+| **Julieth Andrea Bautista Tellez** [![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?style=flat&logo=github)](https://github.com/JulbautistaT) | • Reestructuración y optimización de la arquitectura.<br>• Desarrollo de un pipeline de OCR adaptativo y automatización de envíos masivos a Telegram.<br>• Desarrollo del sistema multiusuario persistente y generación de actas PDF para auditoría.<br>• Integración de políticas de consentimiento de datos. |
+
+---
+
+## 📄 Licencia
+
+Este proyecto está licenciado bajo la **Licencia MIT**.

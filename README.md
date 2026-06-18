@@ -26,25 +26,6 @@ El proyecto fue reestructurado para ofrecer un entorno seguro, escalable y con h
 
 ---
 
-## 📌 Índice
-
-1. [Características Destacadas](#-características-destacadas)
-2. [Arquitectura del Proyecto](#-arquitectura-del-proyecto)
-3. [Tecnologías Utilizadas](#-tecnologías-utilizadas)
-4. [Instalación y Configuración](#-instalación-y-configuración)
-   - [Prerrequisitos](#prerrequisitos)
-   - [Paso 1: Clonar y Preparar](#paso-1-clonar-y-preparar)
-   - [Paso 2: Variables de Entorno](#paso-2-variables-de-entorno)
-   - [Paso 3: Construcción y Despliegue](#paso-3-construcción-y-despliegue)
-   - [Paso 4: Base de Datos y Superusuario](#paso-4-base-de-datos-y-superusuario)
-5. [Uso del Sistema](#-uso-del-sistema)
-   - [Para el Administrador (Web)](#para-el-administrador-web)
-   - [Para el Solicitante (Telegram Bot)](#para-el-solicitante-telegram-bot)
-6. [Monitoreo y Logs](#-monitoreo-y-logs)
-7. [Créditos y Colaboradores](#-créditos-y-colaboradores)
-8. [Licencia](#-licencia)
-
----
 
 ## ✨ Características Destacadas
 
@@ -58,9 +39,8 @@ El proyecto fue reestructurado para ofrecer un entorno seguro, escalable y con h
 * **Soporte Multimedia:** Capacidad de procesar múltiples archivos cargados de forma sucesiva por chat.
 
 ### 📋 Gestión de Inventario, Expiración y Auditoría
-* **Alertas de Caducidad:** Sistema de avisos automatizados que detecta medicamentos próximos a vencer para agilizar su donación.
-* **Actas de Entrega Físicas (PDF):** Generación automática de plantillas oficiales en formato PDF (usando **ReportLab**) preparadas para impresión física y firma manuscrita de los usuarios al recibir los insumos.
-* **Control de Duplicación:** El sistema bloquea de manera inteligente la generación de actas duplicadas para garantizar la transparencia del inventario.
+* **Actas de Entrega Físicas (PDF):** Generación automática de plantillas oficiales en formato PDF (usando **ReportLab**) preparadas para impresión física y firma manuscrita de los usuarios al recibir los medicamentos.
+* **Control de Duplicación:** El sistema bloquea de manera inteligente la generación de actas duplicadas para garantizar la transparencia de la entrega de medicamentos.
 
 ### 🔒 Políticas de Datos y Consentimiento
 * **Módulo de Políticas:** Mantenimiento de versiones de la política de datos (`politicas` app), garantizando que los usuarios presten su consentimiento explícito de manera transparente antes de usar el chatbot.
@@ -149,8 +129,7 @@ Inicia todos los servicios del proyecto:
 ```bash
 docker-compose up -d
 ```
-> [!TIP]
-> Puedes comprobar que todos los servicios estén corriendo usando: `docker-compose ps`
+
 
 ### Paso 4: Base de Datos y Superusuario
 1. Ejecuta las migraciones necesarias de Django:
@@ -204,12 +183,15 @@ docker-compose logs -f celery
 
 ## 👥 Créditos y Colaboradores
 
-Agradecemos a quienes han hecho posible el desarrollo, diseño y evolución de esta plataforma:
+**Hernan Camilo Rivera Arteaga** 
+ • Diseño de la arquitectura base del sistema.<br>
+ • Desarrollo del MVP y primera versión funcional del bot de Telegram. 
 
-| Desarrollador | Rol y Contribuciones Clave |
-| :--- | :--- |
-| **Hernan Camilo Rivera Arteaga** | • Diseño de la arquitectura base del sistema.<br>• Desarrollo del MVP y primera versión funcional del bot de Telegram. |
-| **Julieth Andrea Bautista Tellez** [![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?style=flat&logo=github)](https://github.com/JulbautistaT) | • Reestructuración y optimización de la arquitectura.<br>• Desarrollo de un pipeline de OCR adaptativo y automatización de envíos masivos a Telegram.<br>• Desarrollo del sistema multiusuario persistente y generación de actas PDF para auditoría.<br>• Integración de políticas de consentimiento de datos. |
+**Julieth Andrea Bautista Tellez** [![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?style=flat&logo=github)](https://github.com/JulbautistaT) 
+• Reestructuración y optimización de la arquitectura.<br>
+• Desarrollo de un pipeline de OCR adaptativo y automatización de envíos masivos a Telegram.<br>
+• Desarrollo del sistema multiusuario persistente y generación de actas PDF para auditoría.<br>
+• Integración de políticas de consentimiento de datos. |
 
 ---
 

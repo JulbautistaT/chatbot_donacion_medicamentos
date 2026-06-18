@@ -20,7 +20,24 @@ class DetalleSolicitud(models.Model):
         blank=True,
         help_text='Cantidad de sobres entregados'
     )
+    
+    class TipoPresentacion(models.TextChoices):
+        SOBRE_PASTILLAS = 'SP', 'Sobre (con Pastillas)'
+        SOBRE_POLVO = 'SO', 'Sobre (en Polvo)'
+        FRASCO = 'FR', 'Frasco (Jarabe / Gotas)'
+        TUBO = 'TU', 'Tubo (Crema)'
+        CAJA = 'CJ', 'Caja Completa'
+        PIEZA = 'PS', 'Pieza Suelta'
+        SONDA = 'SA', 'Sonda de Alimentación'
 
+    tipo_presentacion = models.CharField(
+        verbose_name="TIPO DE PRESENTACIÓN",
+        max_length=2,
+        choices=TipoPresentacion.choices,
+        null=True,
+        blank=True,
+        help_text='Presentación del medicamento entregado',
+    )
     class Meta:
         verbose_name = 'Detalle de Solicitud'
         verbose_name_plural = 'Detalles de Solicitud'
@@ -127,11 +144,6 @@ class Solicitante(models.Model):
         blank=True,
         null=True,
         help_text='Dirección del beneficiario'
-    )
-    edad = models.PositiveIntegerField(
-        blank=True,
-        null=True,
-        help_text='Edad del solicitante'
     )
     fecha_registro = models.DateTimeField(
         auto_now_add=True,

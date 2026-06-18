@@ -15,7 +15,7 @@ def seed_politica(apps, schema_editor):
 <h2>2. Datos Personales Recolectados</h2>
 <p>Para la gestión de donaciones, recolectamos y procesamos los siguientes datos:</p>
 <ul>
-    <li><strong>Datos identificativos:</strong> Nombre completo, número y tipo de documento de identidad, edad, dirección física y número de teléfono.</li>
+    <li><strong>Datos identificativos:</strong> Nombre completo, número y tipo de documento de identidad, dirección física y número de teléfono.</li>
     <li><strong>Identificador de Telegram (Chat ID):</strong> Requerido para la interacción técnica con el chatbot.</li>
     <li><strong>Datos sensibles de salud:</strong> Imagen de la fórmula médica, texto extraído por OCR, medicamento solicitado y dosis, para validar que la entrega se realice bajo prescripción médica profesional.</li>
 </ul>

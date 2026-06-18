@@ -144,21 +144,11 @@ Una vez iniciado el sistema, tendrás acceso a:
 ### Para Solicitantes (Telegram)
 
 1. **Inicia conversación**: Envía `/iniciar` a tu bot
-2. **Registro inicial**: Proporciona documento, nombre, edad y dirección
+2. **Registro inicial**: Proporciona documento, nombre, telefono y dirección
 3. **Solicita medicamentos**: Elige entre:
    - Descripción manual de medicamentos
    - Subir foto/PDF de fórmula médica
 4. **Seguimiento**: Consulta estado con "Consultar estado"
-
-## Características Avanzadas
-
-### Control Automático de Inventario
-
-El sistema incluye señales de Django que:
-- Descuentan automáticamente del inventario cuando se entrega medicamento
-- Previenen entregas mayores al stock disponible
-- Mantienen registro de auditoría de todos los cambios
-- Actualizan estados de medicamentos (disponible → entregado)
 
 ### Validaciones de Negocio
 

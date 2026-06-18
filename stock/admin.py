@@ -22,7 +22,7 @@ class AdminConAyuda(admin.ModelAdmin):
 
 @admin.register(stock_models.DetalleSolicitud)
 class DetalleSolicitudAdmin(AdminConAyuda):
-    list_display = ('solicitud', 'medicamento', 'cantidad_entregada')
+    list_display = ('solicitud', 'medicamento','tipo_presentacion' ,'cantidad_entregada')
     search_fields = ('solicitud__solicitante__nombre', 'medicamento__nombre_comercial')
     list_filter = ('solicitud', 'medicamento')
     raw_id_fields = ('solicitud', 'medicamento')
@@ -103,6 +103,7 @@ class EntregaAdmin(AdminConAyuda):
 @admin.register(stock_models.Medicamento)
 class MedicamentoAdmin(AdminConAyuda):
     list_display = ('nombre_comercial', 'concentracion')
+    search_fields = ('nombre_comercial', 'concentracion')
 
     DESCRIPCION = (
         "Aquí se administran los medicamentos registrados en el sistema. "
@@ -125,7 +126,7 @@ class MedicamentoAdmin(AdminConAyuda):
 
 @admin.register(stock_models.Solicitante)
 class SolicitanteAdmin(AdminConAyuda):
-    list_display = ('nombre', 'documento', 'telefono', 'direccion_beneficiario', 'edad', 'fecha_registro', 'verificado')
+    list_display = ('nombre', 'documento', 'telefono', 'direccion_beneficiario','fecha_registro', 'verificado')
     search_fields = ('nombre', 'documento')
 
     DESCRIPCION = (
@@ -151,8 +152,13 @@ class SolicitanteAdmin(AdminConAyuda):
 class DetalleSolicitudInline(admin.TabularInline):
     model = stock_models.DetalleSolicitud
     extra = 1
-    raw_id_fields = ['medicamento']
     autocomplete_fields = ['medicamento']
+
+    fields = (
+        'medicamento',
+        'tipo_presentacion',
+        'cantidad_entregada',
+    )
 
 
 class EntregaInline(admin.TabularInline):

@@ -4,23 +4,46 @@
 
 {% if descripcion %}
 
-<details open style="
-    margin-bottom:15px;
-    background:#f6fff8;
-    border-left:4px solid #417690;
-    padding:12px;
-    border-radius:4px;
-">
+<style>
+    .info-box {
+        margin-bottom: 15px;
+        background: #f6fbff;
+        border-left: 4px solid #264b5d;
+        padding: 12px;
+        border-radius: 4px;
+    }
+    
+    .info-box summary {
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 1.05em;
+        list-style: none; 
+        display: inline-block;
+        background: #264b5d;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 4px;
+        transition: background 0.2s ease;
+    }
 
-    <summary style="
-        cursor:pointer;
-        font-weight:bold;
-        font-size:1.05em;
-    ">
-        Información de esta sección
-    </summary>
+    .info-box summary:hover {
+        background: #264b5d;
+    }
 
-    <br>
+
+    .info-box summary::after {
+        content: "Ocultar información";
+    }
+
+
+    .info-box:not([open]) summary::after {
+        content: "Mostrar información";
+    }
+</style>
+
+<details open class="info-box">
+
+    <summary></summary> <br><br>
 
     <strong>¿Qué encontrará aquí?</strong>
     <p>{{ descripcion }}</p>

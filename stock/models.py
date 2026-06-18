@@ -49,6 +49,11 @@ class Entrega(models.Model):
         help_text='Observaciones adicionales sobre la entrega'
     )
 
+    acta_generada = models.BooleanField(
+        default=False,
+        verbose_name="Acta generada"
+    )
+
     class Meta:
         verbose_name = 'Entrega'
         verbose_name_plural = 'Entregas'
@@ -152,11 +157,6 @@ class Solicitud(models.Model):
         RECHAZADA = 'rechazada', 'Rechazada'
         ENTREGADA = 'entregada', 'Entregada'
 
-    class Prioridad(models.TextChoices):
-        ALTA = 'alta', 'Alta'
-        MEDIA = 'media', 'Media'
-        BAJA = 'baja', 'Baja'
-
     solicitante = models.ForeignKey(
         Solicitante,
         on_delete=models.CASCADE,
@@ -171,12 +171,7 @@ class Solicitud(models.Model):
         auto_now_add=True,
         help_text='Fecha y hora de la solicitud'
     )
-    prioridad = models.CharField(
-        max_length=50,
-        choices=Prioridad.choices,
-        default=Prioridad.MEDIA,
-        help_text='Prioridad de la solicitud'
-    )
+
     estado = models.CharField(
         max_length=50,
         choices=Estado.choices,

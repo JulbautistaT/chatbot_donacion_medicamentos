@@ -73,7 +73,6 @@ def download_requests_info(modeladmin, request, queryset):
             'Solicitante': solicitud.solicitante.nombre,
             'Documento': solicitud.solicitante.documento,
             'Fecha': solicitud.fecha.strftime('%Y-%m-%d'),
-            'Prioridad': solicitud.get_prioridad_display(),
             'Estado': solicitud.get_estado_display(),
             'Observaciones': solicitud.observaciones,
             'Medicamentos Solicitados': medicamentos_solicitados

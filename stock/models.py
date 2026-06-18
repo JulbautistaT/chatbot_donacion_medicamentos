@@ -31,7 +31,7 @@ class DetalleSolicitud(models.Model):
         SONDA = 'SA', 'Sonda de Alimentación'
 
     tipo_presentacion = models.CharField(
-        verbose_name="TIPO DE PRESENTACIÓN",
+        verbose_name="Tipo de presentación",
         max_length=2,
         choices=TipoPresentacion.choices,
         null=True,
@@ -195,6 +195,17 @@ class Solicitud(models.Model):
         null=True,
         help_text='Observaciones adicionales'
     )
+
+    notificada_aceptacion = models.BooleanField(
+        default=False,
+        verbose_name="Notificación de aceptación enviada"
+    )
+
+    notificada_rechazo = models.BooleanField(
+        default=False,
+        verbose_name="Notificación de rechazo enviada"
+    )
+
 
     class Meta:
         verbose_name = 'Solicitud'

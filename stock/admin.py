@@ -172,12 +172,22 @@ class FormulaInline(admin.TabularInline):
 
 @admin.register(stock_models.Solicitud)
 class SolicitudAdmin(AdminConAyuda):
-    list_display = ('solicitante', 'fecha', 'estado', 'observaciones')
+    list_display = ('solicitante', 'fecha', 'estado', 'observaciones', 'notificada_aceptacion',
+    'notificada_rechazo')
     search_fields = ('solicitante__nombre', 'observaciones')
-    list_filter = ('estado', 'fecha')
+    list_filter = ('estado', 'fecha', 'notificada_aceptacion','notificada_rechazo', )
     raw_id_fields = ('solicitante',)
     inlines = [FormulaInline, DetalleSolicitudInline, EntregaInline]
-    actions = ['download_requests_info', 'notificar_solicitudes_aceptadas']
+    actions = ['download_requests_info', 'notificar_solicitudes_aceptadas', 'notificar_solicitudes_rechazadas' ]
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+
+        if obj.estado == stock_models.Solicitud.Estado.ACEPTADA:
+            stock_models.Entrega.objects.get_or_create(
+                solicitud=obj
+            )
+
 
     @admin.action(description='Descargar información de solicitudes')
     def download_requests_info(self, request, queryset):
@@ -188,18 +198,89 @@ class SolicitudAdmin(AdminConAyuda):
 
     @admin.action(description='Notificar por Telegram (solicitudes ACEPTADAS)')
     def notificar_solicitudes_aceptadas(self, request, queryset):
+
         solicitudes_validas = queryset.filter(
             estado=stock_models.Solicitud.Estado.ACEPTADA,
-            solicitante__telegram_id__isnull=False
-        ).exclude(solicitante__telegram_id='')
+            solicitante__telegram_id__isnull=False,
+            notificada_aceptacion=False
+        ).exclude(
+            solicitante__telegram_id=''
+        )
+
+        ya_notificadas = queryset.filter(
+            estado=stock_models.Solicitud.Estado.ACEPTADA,
+            notificada_aceptacion=True
+        ).count()
 
         total = solicitudes_validas.count()
+
         if total == 0:
-            self.message_user(request, "No hay solicitudes válidas.", level='warning')
+            self.message_user(
+                request,
+                "No hay solicitudes aceptadas pendientes de notificación.",
+                level='warning'
+            )
             return
 
-        solicitud_actions.notificar_solicitudes_aceptadas(self, request, solicitudes_validas)
-        self.message_user(request, f"{total} solicitantes notificados correctamente.", level='success')
+        solicitud_actions.notificar_solicitudes_aceptadas(
+            self,
+            request,
+            solicitudes_validas
+        )
+
+        mensaje = f"{total} solicitantes notificados correctamente."
+
+        if ya_notificadas:
+            mensaje += f" ({ya_notificadas} ya estaban notificadas y fueron omitidas)."
+
+        self.message_user(
+            request,
+            mensaje,
+            level='success'
+        )
+
+    @admin.action(description='Notificar por Telegram (solicitudes RECHAZADAS)')
+    def notificar_solicitudes_rechazadas(self, request, queryset):
+
+        solicitudes_validas = queryset.filter(
+            estado=stock_models.Solicitud.Estado.RECHAZADA,
+            solicitante__telegram_id__isnull=False,
+            notificada_rechazo=False
+        ).exclude(
+            solicitante__telegram_id=''
+        )
+
+        ya_notificadas = queryset.filter(
+            estado=stock_models.Solicitud.Estado.RECHAZADA,
+            notificada_rechazo=True
+        ).count()
+
+        total = solicitudes_validas.count()
+
+        if total == 0:
+            self.message_user(
+                request,
+                "No hay solicitudes rechazadas pendientes de notificación.",
+                level='warning'
+            )
+            return
+
+        solicitud_actions.notificar_solicitudes_rechazadas(
+            self,
+            request,
+            solicitudes_validas
+        )
+
+        mensaje = f"{total} solicitantes notificados correctamente."
+
+        if ya_notificadas:
+            mensaje += f" ({ya_notificadas} ya estaban notificadas y fueron omitidas)."
+
+        self.message_user(
+            request,
+            mensaje,
+            level='success'
+        )
 
     DESCRIPCION = (
         "Aquí se administran las solicitudes de medicamentos registradas en el sistema. "

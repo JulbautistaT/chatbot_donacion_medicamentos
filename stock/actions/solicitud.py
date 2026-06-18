@@ -5,53 +5,6 @@ import io
 from django.conf import settings
 from django.http import HttpResponse
 
-
-def notificar_solicitudes_aceptadas(modeladmin, request, queryset):
-    logger = logging.getLogger(__name__)
-    token = settings.TELEGRAM_BOT_TOKEN
-    api_url = f"https://api.telegram.org/bot{token}/sendMessage"
-
-    enviados = 0
-    errores = 0
-
-    for solicitud in queryset:
-        try:
-            telegram_id = solicitud.solicitante.telegram_id
-
-            mensaje = (
-                f"✅ *Solicitud #{solicitud.pk} ACEPTADA*\n\n"
-                f"Hola {solicitud.solicitante.nombre},\n\n"
-                f"Tu solicitud fue aprobada.\n\n"
-                f"📌 Acercate a reclamar tus medicamentos.\n\n"
-                f"Gracias 🙌"
-            )
-
-            resp = http_requests.post(
-                api_url,
-                json={
-                    "chat_id": telegram_id,
-                    "text": mensaje,
-                    "parse_mode": "Markdown"
-                },
-                timeout=10,
-            )
-
-            if resp.ok:
-                enviados += 1
-            else:
-                errores += 1
-
-        except Exception as e:
-            logger.error(f"Error enviando Telegram a solicitud {solicitud.pk}: {e}")
-            errores += 1
-
-    modeladmin.message_user(
-        request,
-        f"Enviados: {enviados}, Errores: {errores}",
-        level='success' if errores == 0 else 'warning'
-    )
-
-
 def download_requests_info(modeladmin, request, queryset):
     """
     Custom action to download information about requests.
@@ -86,3 +39,111 @@ def download_requests_info(modeladmin, request, queryset):
     response['Content-Disposition'] = 'attachment; filename="solicitudes_info.csv"'
     return response
 
+
+def enviar_mensaje_telegram(chat_id, mensaje):
+    logger = logging.getLogger(__name__)
+
+    token = settings.TELEGRAM_BOT_TOKEN
+
+    api_url = (
+        f"https://api.telegram.org/bot{token}/sendMessage"
+    )
+
+    try:
+        resp = http_requests.post(
+            api_url,
+            json={
+                "chat_id": chat_id,
+                "text": mensaje,
+                "parse_mode": "Markdown"
+            },
+            timeout=10,
+        )
+
+        if resp.ok:
+            return True
+
+        logger.error(
+            f"Telegram respondió con error: {resp.text}"
+        )
+        return False
+
+    except Exception as e:
+        logger.error(
+            f"Error enviando mensaje Telegram: {e}"
+        )
+        return False
+
+
+
+
+def notificar_solicitudes_aceptadas(modeladmin, request, queryset):
+
+    enviados = 0
+    errores = 0
+
+    for solicitud in queryset:
+
+        mensaje = (
+            f"✅ *Solicitud #{solicitud.pk} ACEPTADA*\n\n"
+            f"Hola {solicitud.solicitante.nombre},\n\n"
+            f"Tu solicitud fue aprobada.\n\n"
+            f"📌 Acércate a reclamar tus medicamentos.\n\n"
+            f"Gracias 🙌"
+        )
+
+        ok = enviar_mensaje_telegram(
+            solicitud.solicitante.telegram_id,
+            mensaje
+        )
+
+        if ok:
+            solicitud.notificada_aceptacion = True
+            solicitud.save(
+                update_fields=['notificada_aceptacion']
+            )
+            enviados += 1
+        else:
+            errores += 1
+
+    modeladmin.message_user(
+        request,
+        f"Enviados: {enviados}, Errores: {errores}",
+        level='success' if errores == 0 else 'warning'
+    )
+
+
+def notificar_solicitudes_rechazadas(modeladmin, request, queryset):
+
+    enviados = 0
+    errores = 0
+
+    for solicitud in queryset:
+
+        mensaje = (
+            f"❌ *Solicitud #{solicitud.pk} RECHAZADA*\n\n"
+            f"Hola {solicitud.solicitante.nombre},\n\n"
+            f"Tu solicitud no pudo ser aprobada en esta ocasión.\n\n"
+            f"📌 Puedes realizar una nueva solicitud más adelante.\n\n"
+            f"Gracias 🙌"
+        )
+
+        ok = enviar_mensaje_telegram(
+            solicitud.solicitante.telegram_id,
+            mensaje
+        )
+
+        if ok:
+            solicitud.notificada_rechazo = True
+            solicitud.save(
+                update_fields=['notificada_rechazo']
+            )
+            enviados += 1
+        else:
+            errores += 1
+
+    modeladmin.message_user(
+        request,
+        f"Enviados: {enviados}, Errores: {errores}",
+        level='success' if errores == 0 else 'warning'
+    )

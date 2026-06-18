@@ -104,6 +104,7 @@ docker-compose logs -f
 ```bash
 # Ejecutar migraciones
 docker-compose exec donacion_medicamentos python manage.py migrate
+docker-compose exec donacion_medicamentos python manage.py make migrations
 
 # Crear superusuario para el admin
 docker-compose exec donacion_medicamentos python manage.py createsuperuser

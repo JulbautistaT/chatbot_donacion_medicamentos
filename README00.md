@@ -274,10 +274,10 @@ sudo chown -R $USER:$USER media/ static/ logs/
 
 ### Personalizar el bot
 
-El bot se encuentra en `donacion_medicamentos/bot_controller.py`. Puedes:
-- Añadir nuevos comandos
-- Modificar el flujo de conversación
-- Integrar nuevas funcionalidades
+El bot se encuentra en el paquete modular `donacion_medicamentos/bot/`. El orquestador principal de arranque es `donacion_medicamentos/bot/controller.py`. Puedes:
+- Añadir o modificar comandos en `handlers.py`
+- Modificar o agregar flujos de conversación dentro de la carpeta `conversation/`
+- Integrar nuevos validadores o servicios en sus archivos correspondientes (`validators.py`, `request.py`, etc.)
 
 ## Contribución
 

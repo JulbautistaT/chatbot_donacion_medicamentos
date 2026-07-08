@@ -54,7 +54,10 @@ donacion_medicamentos/
 ├── anuncios/               # Módulo de avisos de disponibilidad
 ├── api/                    # Endpoints de la API REST del sistema
 ├── donacion_medicamentos/  # Configuración y controladores principales (Django/Bot)
-│   ├── bot_controller.py   # Control de estados y lógica conversacional del Bot
+│   ├── bot/                # Paquete modular del Bot (orquestador, flujos, etc.)
+│   │   ├── controller.py   # Orquestador y arranque principal del Bot
+│   │   ├── conversation/   # Flujos específicos de conversación
+│   │   └── ...
 │   ├── ocr.py              # Procesador y pipeline adaptativo de OCR
 │   └── settings.py         # Configuración del entorno Django
 ├── politicas/              # Gestión de versión y vigencia de políticas de tratamiento de datos

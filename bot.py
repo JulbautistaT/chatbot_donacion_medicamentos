@@ -77,13 +77,13 @@ os.environ['DJANGO_SETTINGS_MODULE'] = "donacion_medicamentos.settings"
 os.environ['DJANGO_ALLOW_ASYNC_UNSAFE'] = 'True'
 django.setup()
 
-from donacion_medicamentos import bot_controller
+from donacion_medicamentos.bot.controller import BotController
 
 
 def main() -> None:
     """Start the bot."""
     
-    bot_controller_class_obj = bot_controller.BotController()
+    bot_controller_class_obj = BotController()
     bot_controller_class_obj.run()
 
 

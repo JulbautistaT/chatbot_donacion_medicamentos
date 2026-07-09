@@ -6,6 +6,7 @@ from rapidfuzz import fuzz, process
 
 from django.core import files as django_files
 from django.db.models import Count
+from django.utils.formats import date_format
 
 
 from stock import models as stock_models
@@ -78,13 +79,16 @@ class RequestService:
         for item in solicitudes.values('estado').annotate(count=Count('estado')):
             emoji = estado_emojis.get(item['estado'], "")
             request_info += f"- {emoji} <b>{item['count']}</b> {item['estado'].capitalize()}\n"
-        ultima = solicitudes.order_by('-fecha').first()
-        if ultima:
-            emoji = estado_emojis.get(ultima.estado, "")
-            request_info += (
-                f"\n🕓 La última solicitud <b>#{ultima.id}</b> del <b>{ultima.fecha.strftime('%d de %B de %Y')}</b> "
-                f"está en estado {emoji} <b>{ultima.estado.capitalize()}</b>."
-            )
+            ultima = solicitudes.order_by('-fecha').first()
+            if ultima:
+                emoji = estado_emojis.get(ultima.estado, "")
+                fecha = date_format(ultima.fecha, r"j \d\e F \d\e Y")
+
+                request_info += (
+                    f"\n🕓 La última solicitud <b>#{ultima.id}</b> del "
+                    f"<b>{fecha}</b> "
+                    f"está en estado {emoji} <b>{ultima.estado.capitalize()}</b>."
+                )
 
         return request_info
 

@@ -97,13 +97,11 @@ class PhotoFlow:
 
             self.users.mark_verified(telegram_id, expected_document)
 
-            # TODO(bug conocido): no es f-string; el usuario ve "#{solicitud_obj.id}" literal.
-            # Se deja idéntico al original por decisión del equipo (versión estable).
             await update.message.reply_html(
-                "📋 Documento: Verificado\n"
-                "👤 Nombre: Verificado\n\n"
-                "✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada con el número <b>#{solicitud_obj.id}</b>.\n"
-                "Te notificaremos cuando esté lista.",
+                f"📋 Documento: Verificado\n"
+                f"👤 Nombre: Verificado\n\n"
+                f"✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada con el número <b>#{solicitud_obj.id}</b>.\n"
+                f"Te notificaremos cuando esté lista.",
                 reply_markup=ReplyKeyboardRemove()
             )
             self.sessions.finish(telegram_id, "Solicitud completada exitosamente")
@@ -225,12 +223,9 @@ class PhotoFlow:
                 logger.warning(f"[{telegram_id}] Error guardando archivo en flujo manual: {e}")
 
             self.sessions.finish(telegram_id, "Flujo manual completado")
-            # TODO(bug conocido): no es f-string y usa <b> sin parse_mode; el usuario ve
-            # "#{solicitud_obj.id}" y las etiquetas literales. Se deja idéntico al original
-            # por decisión del equipo (versión estable).
             await update.message.reply_text(
-                "✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada con el número <b>#{solicitud_obj.id}</b>.\n. "
-                "Te notificaremos cuando esté lista.",
+                f"✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada con el número <b>#{solicitud_obj.id}</b>.\n"
+                f"Te notificaremos cuando esté lista.",
                 reply_markup=ReplyKeyboardRemove()
             )
             return True

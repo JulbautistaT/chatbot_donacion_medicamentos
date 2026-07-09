@@ -31,7 +31,7 @@ El proyecto fue reestructurado para ofrecer un entorno seguro, escalable y con h
 
 ### 📷 Procesamiento OCR Inteligente
 * **Pipeline Adaptativo:** El procesador realiza un análisis automático de calidad para decidir si aplica un preprocesamiento ligero o uno de rescate (mediante **OpenCV** y **Pillow**) ante imágenes oscuras o rotadas.
-* **Extracción de Fórmulas:** Permite leer formatos PDF e imágenes (PNG/JPG) con recetas médicas mediante **Tesseract OCR**, automatizando la validación de medicamentos contra las solicitudes.
+* **Extracción de Fórmulas:** Permite leer formatos PDF e imágenes (PNG/JPG) con fórmula médicas mediante **Tesseract OCR**, automatizando la validación de medicamentos contra las solicitudes.
 
 ### 🤖 Bot de Telegram Multiusuario
 * **Seguridad y Persistencia de Sesión:** Mantiene de forma segura el contexto de cada usuario permitiendo flujos de conversación estables y simultáneos para múltiples solicitantes.

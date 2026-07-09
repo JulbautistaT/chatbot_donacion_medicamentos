@@ -262,7 +262,7 @@ class OnboardingFlow:
             self.sessions.update(telegram_id, SessionSteps.REQ_MEDICATIONS, {})
             await update.message.reply_text(
                 "💊 ¿Cómo deseas solicitar los medicamentos?\n\n"
-                "Puedes describirlos uno por uno o subir una foto/PDF de la receta médica.",
+                "Puedes describirlos uno por uno o subir una foto/PDF de la fórmula médica.",
                 reply_markup=manual_or_photo_keyboard(),
                 parse_mode="HTML"
             )

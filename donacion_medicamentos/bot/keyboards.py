@@ -34,7 +34,7 @@ def retry_photo_keyboard() -> ReplyKeyboardMarkup:
 def manual_or_photo_keyboard() -> ReplyKeyboardMarkup:
     """Elegir entre describir medicamentos o subir receta."""
     return ReplyKeyboardMarkup(
-        [[KeyboardButton("📝 Describir medicamentos"), KeyboardButton("📷 Subir receta médica")]],
+        [[KeyboardButton("📝 Describir medicamentos"), KeyboardButton("📷 Subir fórmula médica")]],
         one_time_keyboard=True, selective=True,
     )
 

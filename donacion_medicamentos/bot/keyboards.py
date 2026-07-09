@@ -39,6 +39,14 @@ def manual_or_photo_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def medication_options_keyboard(labels) -> ReplyKeyboardMarkup:
+    """Opciones de medicamentos encontrados (máx. 5), un botón por fila."""
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(label)] for label in labels],
+        one_time_keyboard=True, selective=True,
+    )
+
+
 def yes_no_keyboard(left_text: str, right_text: str) -> ReplyKeyboardMarkup:
     """Teclado genérico de dos botones en una fila (el orden lo define el llamador).
 

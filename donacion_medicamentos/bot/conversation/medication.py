@@ -1,15 +1,18 @@
-"""Flujo manual de medicamentos.
+"""Flujo manual de medicamentos con búsqueda difusa (fuzzy search).
 
-NOTA: se conserva la lógica existente; luego se hará una búsqueda difusa
-sobre medicamentos (indicación del propietario del proyecto).
+El usuario escribe el nombre (o parte) del medicamento; el sistema normaliza,
+busca coincidencias parciales y, si no hay, aplica búsqueda difusa. Las opciones
+(máx. 5) se muestran como botones y el ID se resuelve automáticamente.
+Tras 2 búsquedas fallidas consecutivas se redirige al envío de la fórmula
+(conservando los medicamentos ya agregados) para validación por el administrador.
 """
 import logging
 
 from telegram import ForceReply, ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
 
-from ..constants import MAX_MEDICATIONS, SessionSteps
-from ..keyboards import manual_or_photo_keyboard, yes_no_keyboard
+from ..constants import MAX_MEDICATIONS, MAX_MED_SEARCH_FAILURES, SessionSteps
+from ..keyboards import manual_or_photo_keyboard, medication_options_keyboard, yes_no_keyboard
 from ..request import RequestService
 from ..session_manager import SessionManager
 
@@ -18,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class MedicationFlow:
     """Pasos REQ_MEDICATIONS, REQ_MED_COUNT, REQ_MED_DESCRIPTION,
-    REQ_MED_FIRST_LETTER y REQ_MED_LIST_CHOSEN (antes en request_session_step)."""
+    REQ_MED_SEARCH y REQ_MED_SELECT."""
 
     def __init__(self, session_manager: SessionManager, request_service: RequestService) -> None:
         self.sessions = session_manager
@@ -77,12 +80,14 @@ class MedicationFlow:
         self.sessions.update(telegram_id, SessionSteps.REQ_MED_DESCRIPTION, {
             "medication_count": count,
             "pending_medications": [],
+            "med_candidates": [],
+            "med_search_failures": 0,
         })
         await update.message.reply_text(
             "📝 Ahora vamos a solicitar los medicamentos uno por uno.\n\n"
             "💊 Por cada medicamento te pediremos:\n"
-            "1️⃣ Primera letra del nombre\n"
-            "2️⃣ Selección del medicamento\n\n"
+            "1️⃣ El nombre (o parte del nombre) del medicamento\n"
+            "2️⃣ Selección entre las opciones encontradas\n\n"
             "Cuando estés listo, presiona 'Continuar'.",
             reply_markup=yes_no_keyboard("Continuar ▶️", "Cancelar ❌")
         )
@@ -92,10 +97,11 @@ class MedicationFlow:
                                   telegram_id: int, session: dict, text: str) -> None:
         text_lower = text.lower()
         if "continuar" in text_lower:
-            self.sessions.update(telegram_id, SessionSteps.REQ_MED_FIRST_LETTER, {})
+            self.sessions.update(telegram_id, SessionSteps.REQ_MED_SEARCH, {})
             await update.message.reply_text(
-                "🔤 Por favor, escribe la <b>primera letra</b> del medicamento <b>1</b>.\n\n"
-                "💡 Ejemplo: Si buscas 'Acetaminofén', escribe <b>A</b>",
+                "💊 Por favor, escribe el <b>nombre</b> del medicamento <b>1</b> "
+                "(o una parte del nombre).\n\n"
+                "💡 Ejemplo: <code>acetaminofen</code>",
                 reply_markup=ForceReply(selective=True),
                 parse_mode="HTML"
             )
@@ -112,67 +118,47 @@ class MedicationFlow:
             reply_markup=yes_no_keyboard("Continuar ▶️", "Cancelar ❌")
         )
 
-    # ── REQ_MED_FIRST_LETTER ──────────────────────────────────────────────
-    async def req_med_first_letter(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
-                                   telegram_id: int, session: dict, text: str) -> None:
-        first_letter = text.upper()
-        if not first_letter.isalpha() or len(first_letter) != 1:
+    # ── REQ_MED_SEARCH ────────────────────────────────────────────────────
+    async def req_med_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+                             telegram_id: int, session: dict, text: str) -> None:
+        if not text:
             await update.message.reply_text(
-                "Por favor escribe una única letra válida.",
+                "Por favor escribe el nombre del medicamento.",
                 reply_markup=ForceReply(selective=True)
             )
             return
-        meds_text = self.requests.get_available_medications(first_letter)
-        if not meds_text:
-            await update.message.reply_text(
-                f"😕 No se encontraron medicamentos que comiencen con '{first_letter}'.\n\n"
-                "🔄 Por favor, intenta con otra letra.",
-                reply_markup=ForceReply(selective=True)
-            )
-            return
-        self.sessions.update(telegram_id, SessionSteps.REQ_MED_LIST_CHOSEN, {"first_letter": first_letter})
-        await update.message.reply_text(
-            f"💊 Medicamentos disponibles con '{first_letter}':\n\n{meds_text}\n\n"
-            "Escribe el <b>ID</b> del medicamento que deseas solicitar.",
-            reply_markup=ForceReply(selective=True),
-            parse_mode="HTML"
-        )
+        await self.__search_and_reply(update, telegram_id, session, text)
 
-    # ── REQ_MED_LIST_CHOSEN ───────────────────────────────────────────────
-    async def req_med_list_chosen(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
-                                  telegram_id: int, session: dict, text: str) -> None:
-        try:
-            selected_id = int(text)
-        except (ValueError, TypeError):
-            await update.message.reply_text(
-                "Por favor escribe un ID válido (número).",
-                reply_markup=ForceReply(selective=True)
-            )
+    # ── REQ_MED_SELECT ────────────────────────────────────────────────────
+    async def req_med_select(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+                             telegram_id: int, session: dict, text: str) -> None:
+        candidates = session["session_data"].get("med_candidates", [])
+        chosen = next((c for c in candidates if c["label"] == text), None)
+
+        if chosen is None:
+            # El texto no coincide con ningún botón: se trata como una nueva búsqueda
+            # para no dejar al usuario atrapado si ninguna opción era la correcta.
+            await self.__search_and_reply(update, telegram_id, session, text)
             return
 
-        first_letter = session["session_data"].get("first_letter")
-        if not self.requests.medication_exists(selected_id, first_letter):
-            await update.message.reply_text(
-                "❌ ID de medicamento no válido o no disponible. Intenta otro ID.",
-                reply_markup=ForceReply(selective=True)
-            )
-            return
-
-        # Acumular medicamento en sesión (cantidad fija = 1 por selección)
+        # Selección válida: se resuelve el ID automáticamente
         session["session_data"].setdefault("pending_medications", []).append({
-            "medication_id": selected_id,
+            "medication_id": chosen["id"],
         })
         session["session_data"]["medication_count"] -= 1
+        session["session_data"]["med_candidates"] = []
+        session["session_data"]["med_search_failures"] = 0
         remaining = session["session_data"]["medication_count"]
         logger.info(
-            f"[{telegram_id}] Medicamento acumulado: id={selected_id} | restantes={remaining}"
+            f"[{telegram_id}] Medicamento acumulado: id={chosen['id']} "
+            f"({chosen['label']}) | restantes={remaining}"
         )
 
         if remaining > 0:
-            self.sessions.update(telegram_id, SessionSteps.REQ_MED_FIRST_LETTER, {})
+            self.sessions.update(telegram_id, SessionSteps.REQ_MED_SEARCH, {})
             await update.message.reply_text(
-                f"✅ Medicamento agregado.\n\n"
-                f"🔤 Ahora escribe la primera letra del siguiente medicamento (quedan {remaining}).",
+                f"✅ Medicamento agregado: {chosen['label']}.\n\n"
+                f"💊 Ahora escribe el nombre del siguiente medicamento (quedan {remaining}).",
                 reply_markup=ForceReply(selective=True)
             )
         else:
@@ -184,3 +170,64 @@ class MedicationFlow:
                 reply_markup=ReplyKeyboardRemove(),
                 parse_mode="HTML",
             )
+
+    # ── Lógica compartida de búsqueda ─────────────────────────────────────
+    async def __search_and_reply(self, update: Update, telegram_id: int,
+                                 session: dict, query: str) -> None:
+        status, candidates = self.requests.search_medications(query)
+
+        if status in ("ok", "fuzzy"):
+            session["session_data"]["med_search_failures"] = 0
+            self.sessions.update(telegram_id, SessionSteps.REQ_MED_SELECT, {
+                "med_candidates": candidates,
+            })
+            header = (
+                "💊 Encontré estos medicamentos:"
+                if status == "ok"
+                else "💊 No encontré una coincidencia exacta, pero estos medicamentos son similares:"
+            )
+            await update.message.reply_text(
+                f"{header}\n\nSelecciona una opción:",
+                reply_markup=medication_options_keyboard([c["label"] for c in candidates])
+            )
+            return
+
+        if status == "too_many":
+            # No cuenta como fallo: es una guía hacia una búsqueda más precisa
+            self.sessions.update(telegram_id, SessionSteps.REQ_MED_SEARCH, {})
+            await update.message.reply_text(
+                "Se encontraron muchos medicamentos con ese nombre. "
+                "Por favor escribe un poco más del nombre para ayudarte a encontrar el medicamento correcto.",
+                reply_markup=ForceReply(selective=True)
+            )
+            return
+
+        # status == "none": fallo de identificación
+        failures = session["session_data"].get("med_search_failures", 0) + 1
+        session["session_data"]["med_search_failures"] = failures
+
+        if failures >= MAX_MED_SEARCH_FAILURES:
+            # Redirigir al envío de la fórmula. Se CONSERVAN los medicamentos ya
+            # agregados; el administrador validará los no identificados desde la fórmula.
+            self.sessions.update(telegram_id, SessionSteps.REQ_PHOTO, {
+                "pending_files": [],
+                "med_candidates": [],
+                "med_search_failures": 0,
+            })
+            await update.message.reply_text(
+                "No pude identificar el medicamento. Vamos a continuar con la fórmula médica: "
+                "un administrador validará el medicamento a partir de ella.\n\n"
+                "📄 Por favor, sube el documento en <b>PDF</b> o una <b>imagen clara</b> de la fórmula médica.\n\n"
+                "⚠️ <b>IMPORTANTE:</b> Envía la imagen como <b>Archivo</b> (📎 adjunto), "
+                "<b>NO como foto</b>.",
+                reply_markup=ReplyKeyboardRemove(),
+                parse_mode="HTML"
+            )
+            return
+
+        self.sessions.update(telegram_id, SessionSteps.REQ_MED_SEARCH, {})
+        await update.message.reply_text(
+            "No pude identificar el medicamento. "
+            "Intenta escribir el nombre como aparece en la fórmula médica.",
+            reply_markup=ForceReply(selective=True)
+        )

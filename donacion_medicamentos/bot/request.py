@@ -1,14 +1,18 @@
 """Lógica de solicitudes: crear solicitud, consultar, guardar medicamentos y fórmula."""
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from rapidfuzz import fuzz, process
 
 from django.core import files as django_files
 from django.db.models import Count
 
+
 from stock import models as stock_models
 
+from .constants import FUZZY_SCORE_THRESHOLD, MAX_SEARCH_RESULTS
 from .user import UserService
+from .validators import FormulaValidator
 
 logger = logging.getLogger(__name__)
 
@@ -84,24 +88,53 @@ class RequestService:
 
         return request_info
 
-    def get_available_medications(self, first_letter: str) -> Optional[str]:
-        """Antes: BotController.get_available_medications"""
-        medicamentos = stock_models.Medicamento.objects.filter(
-            nombre_comercial__istartswith=first_letter
-        )
-        if not medicamentos.exists():
-            return None
-        return "\n".join(
-            f"{med.id}. {med.nombre_comercial} - {med.concentracion}"
-            for med in medicamentos
-        )
+    # ========== BÚSQUEDA DE MEDICAMENTOS (fuzzy search) ==========
 
-    def medication_exists(self, selected_id: int, first_letter: str) -> bool:
-        """Consulta que antes estaba inline en el paso REQ_MED_LIST_CHOSEN."""
-        return stock_models.Medicamento.objects.filter(
-            id=selected_id,
-            nombre_comercial__istartswith=first_letter
-        ).exists()
+    @staticmethod
+    def rank_medications(query: str, meds: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]]]:
+        """Lógica pura de ranking (sin BD, testeable).
+
+        meds: lista de {"id", "nombre_comercial", "concentracion"}.
+        Devuelve (status, candidatos) donde status ∈ {"ok", "fuzzy", "too_many", "none"}
+        y cada candidato es {"id", "label"} con label = "nombre - concentracion".
+        """
+        query_norm = FormulaValidator.normalize_text(query)
+        if not query_norm:
+            return "none", []
+
+        def label(m):
+            return f"{m['nombre_comercial']} - {m['concentracion']}"
+
+        normalized = [(m, FormulaValidator.normalize_text(m["nombre_comercial"])) for m in meds]
+
+        # 1) Coincidencias exactas/parciales (subcadena sobre texto normalizado)
+        partial = [(m, name) for m, name in normalized if query_norm in name]
+        if len(partial) > MAX_SEARCH_RESULTS:
+            return "too_many", []
+        if partial:
+            # Primero los que comienzan con la consulta, luego alfabético
+            partial.sort(key=lambda t: (not t[1].startswith(query_norm), t[1]))
+            return "ok", [{"id": m["id"], "label": label(m)} for m, _ in partial]
+
+        # 2) Búsqueda difusa (errores de escritura)
+        choices = {i: name for i, (_, name) in enumerate(normalized)}
+        results = process.extract(
+            query_norm, choices, scorer=fuzz.WRatio,
+            limit=MAX_SEARCH_RESULTS, score_cutoff=FUZZY_SCORE_THRESHOLD,
+        )
+        if results:
+            candidates = [{"id": normalized[key][0]["id"], "label": label(normalized[key][0])}
+                          for _, _, key in results]
+            return "fuzzy", candidates
+
+        return "none", []
+
+    def search_medications(self, query: str) -> Tuple[str, List[Dict[str, Any]]]:
+        """Busca en el inventario por nombre_comercial (parcial + fuzzy)."""
+        meds = list(stock_models.Medicamento.objects.values("id", "nombre_comercial", "concentracion"))
+        status, candidates = self.rank_medications(query, meds)
+        logger.info(f"🔎 Búsqueda de medicamento '{query}': status={status}, candidatos={len(candidates)}")
+        return status, candidates
 
     def save_formula(
         self, solicitud_obj: stock_models.Solicitud, file_path: str,

@@ -64,6 +64,7 @@ python-telegram-bot==22.1
 pytesseract==0.3.10
 pytz==2025.2
 pyzmq==26.4.0
+rapidfuzz==3.14.1
 redis==6.2.0
 reportlab==4.2.5
 requests==2.32.3

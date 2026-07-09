@@ -54,9 +54,6 @@ RUN wget -q https://github.com/mozilla/geckodriver/releases/download/v0.36.0/gec
     && chmod +x /usr/local/bin/geckodriver \
     && rm geckodriver-v0.36.0-linux64.tar.gz
 
-
-
-
 # Create non-privileged user
 RUN addgroup --gid $GROUP_ID app
 RUN adduser --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID app
@@ -73,7 +70,5 @@ ADD requirements.txt $HOME/requirements.txt
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
-
-
 
 CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24"]

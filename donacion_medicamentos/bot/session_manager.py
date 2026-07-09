@@ -31,6 +31,8 @@ class SessionManager:
                 "pending_medications": [],
                 "pending_files": [],
                 "documento_relink": None,
+                "med_candidates": [],
+                "med_search_failures": 0,
             },
             "step": SessionSteps.NEW_USER,
             "is_active": True,

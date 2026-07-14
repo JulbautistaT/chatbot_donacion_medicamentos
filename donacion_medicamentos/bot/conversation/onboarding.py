@@ -39,17 +39,17 @@ class OnboardingFlow:
             version = "1.0"
             url = "http://127.0.0.1:8000/politica-de-datos/"
 
-            await update.message.reply_html(
-                f"👋 ¡Hola! Bienvenido al sistema de donación de medicamentos. 💊🤝\n\n"
-                f"Antes de continuar, por favor lee y acepta nuestra <b>Política de Tratamiento de Datos</b>. 📄🔒\n"
-                f"📋 <b>Versión {version}</b>\n"
-                f"🔗 <a href='{url}'>Leer política</a>\n\n"
-                "Al presionar <b>Acepto</b>, autorizas el tratamiento de tus datos personales y "
-                "confirmas que la información suministrada es veraz. También entiendes que la Junta "
-                "únicamente facilita la donación de medicamentos.\n\n"
-                "✅ Presiona <b>Acepto</b> para continuar.",
-                reply_markup=accept_policy_keyboard(),
-            )
+        await update.message.reply_html(
+            f"👋 ¡Hola! Bienvenido al sistema de donación de medicamentos. 💊🤝\n\n"
+            f"Antes de continuar, por favor lee y acepta nuestra <b>Política de Tratamiento de Datos</b>. 📄🔒\n"
+            f"📋 <b>Versión {version}</b>\n"
+            f"🔗 <a href='{url}'>Leer política</a>\n\n"
+            "Al presionar <b>Acepto</b>, autorizas el tratamiento de tus datos personales y "
+            "confirmas que la información suministrada es veraz. También entiendes que la Junta "
+            "únicamente facilita la donación de medicamentos.\n\n"
+            "✅ Presiona <b>Acepto</b> para continuar.",
+            reply_markup=accept_policy_keyboard(),
+        )
 
     async def handle_acepto(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """LEGADO: nunca se registra como handler en run() (código muerto en el original).

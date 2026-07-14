@@ -231,7 +231,7 @@ class PhotoFlow:
             return True
         elif text:
             await update.message.reply_text(
-                "📄 Por favor sube la foto o PDF de la receta médica.\n\n"
+                "📄 Por favor sube la foto o PDF de la fórmula médica.\n\n"
                 "⚠️ Recuerda enviarlo como <b>Archivo</b> (📎 adjunto).",
                 reply_markup=ForceReply(selective=True),
                 parse_mode="HTML"

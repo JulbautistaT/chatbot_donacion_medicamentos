@@ -7,6 +7,7 @@ Tras 2 búsquedas fallidas consecutivas se redirige al envío de la fórmula
 (conservando los medicamentos ya agregados) para validación por el administrador.
 """
 import logging
+import re
 
 from telegram import ForceReply, ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
@@ -17,6 +18,13 @@ from ..request import RequestService
 from ..session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
+
+# Respuesta del usuario indicando que ninguna de las opciones mostradas corresponde
+# al medicamento buscado (se evalúa sobre el texto completo, ya limpio de espacios).
+NONE_OF_ABOVE_PATTERN = re.compile(
+    r'^(ninguno|ninguna|no\s+est[aá]|no\s+es|no\s+aparece|no)[\s.,!]*$',
+    re.IGNORECASE
+)
 
 
 class MedicationFlow:
@@ -35,10 +43,14 @@ class MedicationFlow:
             self.sessions.update(telegram_id, SessionSteps.REQ_MED_COUNT, {})
             await update.message.reply_text(
                 "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
-                f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.",
-                reply_markup=ForceReply(selective=True)
+                f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.\n\n"
+                "Escribe una cantidad de 1 a 4.\n\n"
+                "Ejemplo: <code>2</code>",
+                reply_markup=ForceReply(selective=True),
+                parse_mode="HTML",
             )
             return
+
         if "subir" in text_clean or "receta" in text_clean or "foto" in text_clean:
             self.sessions.update(telegram_id, SessionSteps.REQ_PHOTO, {
                 "pending_medications": [], "pending_files": [],
@@ -167,6 +179,12 @@ class MedicationFlow:
         chosen = next((c for c in candidates if c["label"] == text), None)
 
         if chosen is None:
+            if NONE_OF_ABOVE_PATTERN.match(text.strip()):
+                # El usuario indica que ninguna opción mostrada corresponde: se da por
+                # no identificado este medicamento (se validará con la fórmula médica).
+                query = session["session_data"].get("last_med_query", text)
+                await self.__mark_medication_unidentified(update, telegram_id, session, query)
+                return
             # El texto no coincide con ningún botón: se trata como una nueva búsqueda
             # para no dejar al usuario atrapado si ninguna opción era la correcta.
             await self.__search_and_reply(update, telegram_id, session, text)
@@ -204,6 +222,7 @@ class MedicationFlow:
             session["session_data"]["med_search_failures"] = 0
             self.sessions.update(telegram_id, SessionSteps.REQ_MED_SELECT, {
                 "med_candidates": candidates,
+                "last_med_query": query,
             })
             header = (
                 "💊 Encontré estos medicamentos:"
@@ -231,33 +250,8 @@ class MedicationFlow:
         session["session_data"]["med_search_failures"] = failures
 
         if failures >= MAX_MED_SEARCH_FAILURES:
-            # Reiniciar contador de fallos
-            session["session_data"]["med_search_failures"] = 0
-
-            # Registrar que este medicamento será validado con la fórmula
-            session["session_data"].setdefault("pending_formula_validation", []).append(query)
-
-            # Marcar que la fórmula deberá revisarse
-            session["session_data"]["requires_formula_validation"] = True
-
-            # Descontar un medicamento pendiente
-            session["session_data"]["medication_count"] -= 1
-            remaining = session["session_data"]["medication_count"]
-
-            if remaining > 0:
-                self.sessions.update(telegram_id, SessionSteps.REQ_MED_SEARCH, {})
-
-                await update.message.reply_text(
-                    "😊 No te preocupes. No pude identificar este medicamento, "
-                    "pero lo validaremos cuando recibamos la fórmula médica.\n\n"
-                    f"💊 Ahora escribe el siguiente medicamento (quedan {remaining}).",
-                    reply_markup=ForceReply(selective=True)
-                )
-            else:
-                await self.__request_formula(update, telegram_id, session)
-
+            await self.__mark_medication_unidentified(update, telegram_id, session, query)
             return
-
 
         self.sessions.update(telegram_id, SessionSteps.REQ_MED_SEARCH, {})
         await update.message.reply_text(
@@ -265,3 +259,33 @@ class MedicationFlow:
             "Intenta escribir el nombre como aparece en la fórmula médica.",
             reply_markup=ForceReply(selective=True)
         )
+
+    # ── Medicamento no identificado (fallos agotados o rechazo explícito) ──
+    async def __mark_medication_unidentified(self, update: Update, telegram_id: int,
+                                              session: dict, query: str) -> None:
+        """Da por no identificado el medicamento actual: se validará con la fórmula
+        médica. Usado tanto al agotar los intentos de búsqueda como cuando el usuario
+        indica explícitamente que ninguna opción mostrada corresponde."""
+        session["session_data"]["med_search_failures"] = 0
+        session["session_data"]["med_candidates"] = []
+
+        # Registrar que este medicamento será validado con la fórmula
+        session["session_data"].setdefault("pending_formula_validation", []).append(query)
+
+        # Marcar que la fórmula deberá revisarse
+        session["session_data"]["requires_formula_validation"] = True
+
+        # Descontar un medicamento pendiente
+        session["session_data"]["medication_count"] -= 1
+        remaining = session["session_data"]["medication_count"]
+
+        if remaining > 0:
+            self.sessions.update(telegram_id, SessionSteps.REQ_MED_SEARCH, {})
+            await update.message.reply_text(
+                "😊 No te preocupes. No pude identificar este medicamento, "
+                "pero lo validaremos cuando recibamos la fórmula médica.\n\n"
+                f"💊 Ahora escribe el siguiente medicamento (quedan {remaining}).",
+                reply_markup=ForceReply(selective=True)
+            )
+        else:
+            await self.__request_formula(update, telegram_id, session)

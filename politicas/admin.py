@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from .models import PoliticaDatos
 
 @admin.register(PoliticaDatos)
@@ -35,12 +35,13 @@ class PoliticaDatosAdmin(admin.ModelAdmin):
     ]
 
     ACCIONES = [
-        "Eliminar Política de Datos seleccionada/s"
+        "Eliminar Política de Datos seleccionada/s (no aplica a la política activa)"
     ]
 
     CONSIDERACIONES = [
-        "Debe existir al menos una política activa para que el chatbot funcione correctamente.",
-        "Antes de desactivar una política, asegúrese de que exista otra versión activa."        
+        "Siempre debe existir exactamente una política activa: el sistema no permite dejar ninguna activa.",
+        "Al marcar una política como activa, la que estaba activa se desactiva automáticamente.",
+        "No es posible eliminar la política activa; active otra versión antes de eliminarla.",
     ]
 
     def changelist_view(self, request, extra_context=None):
@@ -56,4 +57,45 @@ class PoliticaDatosAdmin(admin.ModelAdmin):
             request,
             extra_context=extra_context
         )
-    
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        desactivadas = getattr(obj, 'desactivadas_automaticamente', [])
+        if desactivadas:
+            versiones = ', '.join(f"v{v}" for v in desactivadas)
+            self.message_user(
+                request,
+                f"⚠️ Se desactivó automáticamente la política {versiones}, ya que solo "
+                "puede haber una política activa a la vez.",
+                level=messages.WARNING,
+            )
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and obj.es_activa:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def delete_model(self, request, obj):
+        if obj.es_activa:
+            self.message_user(
+                request,
+                f"⚠️ No se eliminó la política v{obj.version} porque está activa: "
+                "siempre debe existir una política activa. Active otra versión antes "
+                "de eliminarla.",
+                level=messages.WARNING,
+            )
+            return
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        activas = list(queryset.filter(es_activa=True))
+        if activas:
+            versiones = ', '.join(f"v{p.version}" for p in activas)
+            self.message_user(
+                request,
+                f"⚠️ No se eliminó la política {versiones} porque está activa: "
+                "siempre debe existir una política activa. Active otra versión antes "
+                "de eliminarla.",
+                level=messages.WARNING,
+            )
+        super().delete_queryset(request, queryset.exclude(es_activa=True))

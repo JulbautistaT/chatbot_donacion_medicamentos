@@ -120,9 +120,12 @@ class PhotoFlow:
                 )
                 self.sessions.update(telegram_id, SessionSteps.REQ_MED_COUNT, session["session_data"])
                 await update.message.reply_text(
-                    f"🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
-                    f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.",
-                    reply_markup=ForceReply(selective=True)
+                    "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
+                    f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.\n\n"
+                    "Escribe una cantidad de 1 a 4.\n\n"
+                    "Ejemplo: <code>2</code>",
+                    reply_markup=ForceReply(selective=True),
+                    parse_mode="HTML",
                 )
             else:
                 await update.message.reply_html(
@@ -154,10 +157,12 @@ class PhotoFlow:
         if "describir" in text_lower or "manual" in text_lower:
             self.sessions.update(telegram_id, SessionSteps.REQ_MED_COUNT, {})
             await update.message.reply_text(
-                "📝 Entendido. Vamos a describir los medicamentos manualmente.\n\n"
-                "🔢 ¿Cuántos medicamentos vas a solicitar?\n"
-                f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.",
-                reply_markup=ForceReply(selective=True)
+                "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
+                f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.\n\n"
+                "Escribe una cantidad de 1 a 4.\n\n"
+                "Ejemplo: <code>2</code>",
+                reply_markup=ForceReply(selective=True),
+                parse_mode="HTML",
             )
             return
         await update.message.reply_text(

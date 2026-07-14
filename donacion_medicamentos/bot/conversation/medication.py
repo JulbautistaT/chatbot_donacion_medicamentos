@@ -230,8 +230,10 @@ class MedicationFlow:
                 else "💊 No encontré una coincidencia exacta, pero estos medicamentos son similares:"
             )
             await update.message.reply_text(
-                f"{header}\n\nSelecciona una opción:",
-                reply_markup=medication_options_keyboard([c["label"] for c in candidates])
+                f"{header} Selecciona una opción.\n\n"
+                "❓ Si tu medicamento <b>no aparece</b> en la lista, escribe <code>ninguno</code>",
+                reply_markup=medication_options_keyboard([c["label"] for c in candidates]),
+                parse_mode="HTML",
             )
             return
 
@@ -284,7 +286,7 @@ class MedicationFlow:
             await update.message.reply_text(
                 "😊 No te preocupes. No pude identificar este medicamento, "
                 "pero lo validaremos cuando recibamos la fórmula médica.\n\n"
-                f"💊 Ahora escribe el siguiente medicamento (quedan {remaining}).",
+                f"💊 Ahora escribe el nombre del siguiente medicamento (quedan {remaining}).",
                 reply_markup=ForceReply(selective=True)
             )
         else:

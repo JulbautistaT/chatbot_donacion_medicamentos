@@ -6,3 +6,4 @@ logs
 __pycache__
 *.pyc
 db.sqlite3
+prueba_funcionales.md

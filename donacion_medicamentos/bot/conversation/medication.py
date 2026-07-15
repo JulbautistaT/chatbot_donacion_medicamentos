@@ -61,8 +61,7 @@ class MedicationFlow:
                 "  • Nombre del paciente\n"
                 "  • Número de documento\n"
                 "  • Lista de medicamentos\n\n"
-                "⚠️ <b>IMPORTANTE:</b> Envía la imagen como <b>Archivo</b> (📎 adjunto), "
-                "<b>NO como foto</b>. Telegram comprime las fotos y el texto puede quedar ilegible.\n\n"
+                "⚠️ <b>Para enviarla: </b> Da click en el icono📎y selecciona el archivo o la imagen de la fórmula médica. \n\n"
                 "🔍 El sistema validará automáticamente la información.",
                 reply_markup=ReplyKeyboardRemove(),
                 parse_mode="HTML"
@@ -154,10 +153,17 @@ class MedicationFlow:
         if requires_validation:
             mensaje = (
                 "✅ ¡Perfecto! Hemos registrado todos los medicamentos que fue posible identificar.\n\n"
-                "📄 Ahora, por favor <b>sube una foto o un PDF de la fórmula médica</b>.\n\n"
-                "😊 <b>No te preocupes.</b> Revisaremos la fórmula médica para identificar los "
-                "medicamentos que no pudimos encontrar y así completar correctamente tu solicitud."
-            )
+                "📄 Ahora, por favor <b>sube una foto o un PDF de la fórmula médica</b>\n\n"
+                "<b>Sigue estos pasos:</b>\n\n"
+                "1️⃣ Pulsa el icono del clip 📎 para adjuntar un archivo.\n\n"
+                "2️⃣ Si vas a enviar una <b>foto</b>:\n"
+                "   • Selecciona <b>Galería</b> o <b>Fotos</b>.\n"
+                "   • Busca y elige la imagen de la fórmula. 🖼️\n\n"
+                "3️⃣ Si vas a enviar un <b>archivo PDF</b>:\n"
+                "   • Pulsa la opción <b>Documento</b> 📄.\n"
+                "   • Busca el archivo PDF de la fórmula y selecciónalo.\n\n"
+                "📌 Espera unos segundos mientras se carga el archivo. No cierres el chat hasta que termine el envío."
+                )
         else:
             mensaje = (
                 "✅ ¡Perfecto! Ya hemos registrado todos los medicamentos.\n\n"
@@ -225,7 +231,7 @@ class MedicationFlow:
                 "last_med_query": query,
             })
             header = (
-                "💊 Encontré estos medicamentos:"
+                "💊 Encontré estos medicamentos:\n\n"
                 if status == "ok"
                 else "💊 No encontré una coincidencia exacta, pero estos medicamentos son similares:"
             )

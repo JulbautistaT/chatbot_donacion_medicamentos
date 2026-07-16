@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.contrib.admin import helpers as admin_helpers
+from django.template.response import TemplateResponse
 from anuncios import models as anuncios_models
 from anuncios.actions import anuncio as anuncio_actions
 
@@ -7,6 +9,7 @@ from anuncios.actions import anuncio as anuncio_actions
 class AnuncioAdmin(admin.ModelAdmin):
     list_display = (
         'medicamento',
+        'tipo_presentacion',
         'cantidad',
         'fecha_anuncio',
         'activo'
@@ -19,6 +22,7 @@ class AnuncioAdmin(admin.ModelAdmin):
 
     list_filter = (
         'activo',
+        'tipo_presentacion',
         'fecha_anuncio'
     )
 
@@ -31,7 +35,11 @@ class AnuncioAdmin(admin.ModelAdmin):
 
     @admin.action(description='Enviar anuncio masivo')
     def enviar_anuncio_masivo(self, request, queryset):
-        anuncios_validos = queryset.filter(activo=True)
+        """Muestra primero una vista previa de los mensajes a enviar (con
+        botones 'Enviar' / 'Corregir'); solo al confirmar con 'post=yes' se
+        envían realmente los anuncios por Telegram. Mismo patrón de doble
+        paso que usa 'Eliminar' en el admin de Django."""
+        anuncios_validos = queryset.filter(activo=True).select_related('medicamento')
 
         if not anuncios_validos.exists():
             self.message_user(
@@ -39,12 +47,27 @@ class AnuncioAdmin(admin.ModelAdmin):
                 "No hay anuncios activos seleccionados.",
                 level='warning'
             )
-            return
+            return None
 
-        anuncio_actions.enviar_anuncio_masivo(
-            self,
-            request,
-            anuncios_validos
+        if request.POST.get('post') == 'yes':
+            anuncio_actions.enviar_anuncio_masivo(self, request, anuncios_validos)
+            return None
+
+        mensajes = anuncio_actions.construir_mensajes_anuncio_masivo(anuncios_validos)
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Vista previa — Enviar anuncio masivo',
+            'mensajes': mensajes,
+            'anuncios': anuncios_validos,
+            'action_checkbox_name': admin_helpers.ACTION_CHECKBOX_NAME,
+            'queryset': queryset,
+            'opts': self.model._meta,
+            'action_name': 'enviar_anuncio_masivo',
+        }
+        request.current_app = self.admin_site.name
+        return TemplateResponse(
+            request, 'admin/anuncios/anuncio/confirmar_notificacion.html', context
         )
 
     @admin.action(description='Desactivar anuncios seleccionados')

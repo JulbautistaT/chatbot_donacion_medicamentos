@@ -1,0 +1,75 @@
+{% extends "admin/base_site.html" %}
+{% load i18n l10n admin_urls static %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script src="{% static 'admin/js/cancel.js' %}" async></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ opts.app_label }} model-{{ opts.model_name }} confirmar-notificacion{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Inicio</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+&rsaquo; Vista previa de envío
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+    .preview-mensaje {
+        white-space: pre-wrap;
+        background: #fff;
+        border: 1px solid #ccd6dd;
+        border-radius: 4px;
+        padding: 10px 12px;
+        font-family: monospace;
+        margin: 8px 0 18px 0;
+    }
+    .preview-desplegable {
+        margin-bottom: 18px;
+        background: #f6fbff;
+        border-left: 4px solid #264b5d;
+        border-radius: 4px;
+        padding: 10px 16px;
+    }
+    .preview-desplegable summary {
+        cursor: pointer;
+        font-weight: bold;
+        color: #264b5d;
+    }
+    .preview-desplegable ul {
+        margin: 6px 0 0 0;
+    }
+    .preview-actions {
+        margin-top: 20px;
+    }
+    .preview-actions input[type="submit"] {
+        margin-right: 10px;
+    }
+</style>
+
+<p>Este es el mensaje que se enviará por Telegram a todos los solicitantes con cuenta vinculada.
+Revisa el contenido antes de confirmar.</p>
+
+{% for mensaje in mensajes %}
+<h3>{% if mensajes|length > 1 %}Parte {{ forloop.counter }} de {{ mensajes|length }}{% else %}Mensaje{% endif %}</h3>
+<div class="preview-mensaje">{{ mensaje }}</div>
+{% endfor %}
+
+
+
+<form method="post">{% csrf_token %}
+<div class="preview-actions">
+{% for obj in queryset %}
+<input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk|unlocalize }}">
+{% endfor %}
+<input type="hidden" name="action" value="{{ action_name }}">
+<input type="hidden" name="post" value="yes">
+<input type="submit" class="default" value="Enviar">
+<a href="#" class="button cancel-link">Corregir</a>
+</div>
+</form>
+{% endblock %}

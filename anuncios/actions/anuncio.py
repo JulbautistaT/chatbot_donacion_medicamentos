@@ -33,6 +33,49 @@ def dividir_en_partes(anuncios_texto, encabezado, pie):
     return partes
 
 
+ENCABEZADO_ANUNCIO = "📢 *Medicamentos disponibles actualmente*\n\n"
+PIE_ANUNCIO = (
+    "\nSi cuenta con una fórmula no mayor a 3 meses de estos medicamentos."
+    "\nPor favor acercarse."
+)
+
+
+def construir_texto_anuncio(anuncio):
+    """Texto de un anuncio individual, incluyendo su presentación cuando esté
+    definida. Compartido entre la vista previa del admin y el envío real."""
+    texto = (
+        f"• {anuncio.medicamento.nombre_comercial} "
+        f"{anuncio.medicamento.concentracion}\n"
+    )
+    if anuncio.tipo_presentacion:
+        texto += f"Presentación: {anuncio.get_tipo_presentacion_display()}\n"
+    texto += f"Cantidad disponible: {anuncio.cantidad} sobres\n"
+    if anuncio.notas_adicionales:
+        texto += f"Notas: {anuncio.notas_adicionales}\n"
+    return texto
+
+
+def construir_mensajes_anuncio_masivo(queryset):
+    """Devuelve la lista de mensajes (una parte por mensaje) que se enviarán
+    para el anuncio masivo de `queryset`. Compartido entre la vista previa
+    del admin y el envío real, para que nunca queden distintos."""
+    anuncios_texto = [
+        construir_texto_anuncio(anuncio)
+        for anuncio in queryset.select_related('medicamento')
+    ]
+    partes = dividir_en_partes(anuncios_texto, ENCABEZADO_ANUNCIO, PIE_ANUNCIO)
+    total_partes = len(partes)
+
+    mensajes = []
+    for i, parte in enumerate(partes, start=1):
+        # Indica parte X de N solo si hay más de una
+        sufijo_parte = f" _(parte {i}/{total_partes})_" if total_partes > 1 else ""
+        mensajes.append(
+            ENCABEZADO_ANUNCIO.rstrip() + sufijo_parte + "\n\n" + "\n".join(parte) + PIE_ANUNCIO
+        )
+    return mensajes
+
+
 def enviar_anuncio_masivo(modeladmin, request, queryset):
     if not queryset.exists():
         modeladmin.message_user(request, "No hay anuncios seleccionados.", level="warning")
@@ -41,24 +84,8 @@ def enviar_anuncio_masivo(modeladmin, request, queryset):
     token = settings.TELEGRAM_BOT_TOKEN
     api_url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-    encabezado = "📢 *Medicamentos disponibles actualmente*\n\n"
-    pie = (
-        "\nSi cuenta con una fórmula no mayor a 3 meses de estos medicamentos."
-        "\nPor favor acercarse."
-    )
-
-    anuncios_texto = []
-    for anuncio in queryset.select_related('medicamento'):
-        texto = (
-            f"• {anuncio.medicamento.nombre_comercial} "
-            f"{anuncio.medicamento.concentracion}\n"
-            f"Cantidad disponible: {anuncio.cantidad} sobres\n"
-        )
-        if anuncio.notas_adicionales:
-            texto += f"Notas: {anuncio.notas_adicionales}\n"
-        anuncios_texto.append(texto)
-
-    partes = dividir_en_partes(anuncios_texto, encabezado, pie)
+    mensajes = construir_mensajes_anuncio_masivo(queryset)
+    total_partes = len(mensajes)
 
     telegram_ids = (
         Solicitante.objects
@@ -70,14 +97,9 @@ def enviar_anuncio_masivo(modeladmin, request, queryset):
 
     enviados = 0
     errores = 0
-    total_partes = len(partes)
 
     for telegram_id in telegram_ids:
-        for i, parte in enumerate(partes, start=1):
-            # Indica parte X de N solo si hay más de una
-            sufijo_parte = f" _(parte {i}/{total_partes})_" if total_partes > 1 else ""
-            mensaje = encabezado.rstrip() + sufijo_parte + "\n\n" + "\n".join(parte) + pie
-
+        for mensaje in mensajes:
             try:
                 response = http_requests.post(
                     api_url,

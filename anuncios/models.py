@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
+from stock.models import DetalleSolicitud
 
 
 class Anuncio(models.Model):
@@ -13,6 +14,15 @@ class Anuncio(models.Model):
 
     cantidad = models.PositiveIntegerField(
         help_text="Cantidad de sobres disponibles"
+    )
+
+    tipo_presentacion = models.CharField(
+        verbose_name="Presentación",
+        max_length=2,
+        choices=DetalleSolicitud.TipoPresentacion.choices,
+        null=True,
+        blank=True,
+        help_text='Presentación del medicamento anunciado (sobre, frasco, caja, etc.)',
     )
 
     notas_adicionales = models.TextField(

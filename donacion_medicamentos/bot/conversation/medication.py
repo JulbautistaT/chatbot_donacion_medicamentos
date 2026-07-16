@@ -167,9 +167,17 @@ class MedicationFlow:
         else:
             mensaje = (
                 "✅ ¡Perfecto! Ya hemos registrado todos los medicamentos.\n\n"
-                "📄 Ahora, por favor <b>sube una foto o un PDF de la fórmula médica</b> para completar tu solicitud.\n\n"
-                "🩺💊 Este paso es <b>obligatorio</b>. La solicitud se guardará al recibirla."
-            )
+                "📄 Ahora, por favor <b>sube una foto o un PDF de la fórmula médica</b>\n\n"
+                "<b>Sigue estos pasos:</b>\n\n"
+                "1️⃣ Pulsa el icono del clip 📎 para adjuntar un archivo.\n\n"
+                "2️⃣ Si vas a enviar una <b>foto</b>:\n"
+                "   • Selecciona <b>Galería</b> o <b>Fotos</b>.\n"
+                "   • Busca y elige la imagen de la fórmula. 🖼️\n\n"
+                "3️⃣ Si vas a enviar un <b>archivo PDF</b>:\n"
+                "   • Pulsa la opción <b>Documento</b> 📄.\n"
+                "   • Busca el archivo PDF de la fórmula y selecciónalo.\n\n"
+                "📌 Espera unos segundos mientras se carga el archivo. No cierres el chat hasta que termine el envío."
+                )
 
         await update.message.reply_text(
             mensaje,

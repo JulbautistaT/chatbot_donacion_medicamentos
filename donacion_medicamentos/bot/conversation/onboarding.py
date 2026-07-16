@@ -99,7 +99,7 @@ class OnboardingFlow:
         logger.info(f"[{telegram_id}] Política aceptada -> solicitando documento")
         self.sessions.update(telegram_id, SessionSteps.REQ_DOCUMENT, {"documento": None})
         await update.message.reply_text(
-            "📝 Por favor, escribe el <b>número de documento</b> de la persona que necesita los medicamentos.\n\n"
+            "📝 Por favor, escribe el <b>número de documento</b> de la persona que necesita los medicamentos, sin espacios, puntos ni caracteres especiales. \n\n"
             "Ejemplo: <code>123456789</code>",
             reply_markup=ForceReply(selective=True),
             parse_mode="HTML",
@@ -108,14 +108,6 @@ class OnboardingFlow:
     # ── REQ_DOCUMENT ──────────────────────────────────────────────────────
     async def req_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
                            telegram_id: int, session: dict, text: str) -> None:
-        if not text.isdigit():
-            await update.message.reply_text(
-                "Por favor escribe un número de documento válido.",
-                reply_markup=ForceReply(selective=True),
-            )
-            return
-
-        document_number = text
         attempts = session["session_data"].get("doc_attempts", 0) + 1
         session["session_data"]["doc_attempts"] = attempts
         if attempts > MAX_DOC_ATTEMPTS:
@@ -126,6 +118,14 @@ class OnboardingFlow:
             )
             return
 
+        if not text.isdigit():
+            await update.message.reply_text(
+                "Por favor escribe un número de documento válido.",
+                reply_markup=ForceReply(selective=True),
+            )
+            return
+
+        document_number = text
         logger.info(f"[{telegram_id}] Documento recibido: {document_number} (intento {attempts})")
         solicitante, status = self.users.get_user_secure(telegram_id, document_number)
 

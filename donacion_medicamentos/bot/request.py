@@ -74,21 +74,22 @@ class RequestService:
             stock_models.Solicitud.Estado.PENDIENTE: "⏳",
             stock_models.Solicitud.Estado.RECHAZADA: "❌",
             stock_models.Solicitud.Estado.ACEPTADA: "✅",
+            stock_models.Solicitud.Estado.ENTREGADA: "📦",
         }
-        request_info = f"📋 Tienes <b>{solicitudes.count()}</b> solicitudes:\n"
-        for item in solicitudes.values('estado').annotate(count=Count('estado')):
+        request_info = f"📋 Tienes <b>{solicitudes.count()}</b> solicitud(es):\n"
+        for item in solicitudes.values('estado').annotate(count=Count('estado')).order_by('estado'):
             emoji = estado_emojis.get(item['estado'], "")
             request_info += f"- {emoji} <b>{item['count']}</b> {item['estado'].capitalize()}\n"
-            ultima = solicitudes.order_by('-fecha').first()
-            if ultima:
-                emoji = estado_emojis.get(ultima.estado, "")
-                fecha = date_format(ultima.fecha, r"j \d\e F \d\e Y")
 
-                request_info += (
-                    f"\n🕓 La última solicitud <b>#{ultima.id}</b> del "
-                    f"<b>{fecha}</b> "
-                    f"está en estado {emoji} <b>{ultima.estado.capitalize()}</b>."
-                )
+        ultima = solicitudes.order_by('-fecha').first()
+        if ultima:
+            emoji = estado_emojis.get(ultima.estado, "")
+            fecha = date_format(ultima.fecha, r"j \d\e F \d\e Y")
+            request_info += (
+                f"\n🕓 La última solicitud <b>#{ultima.id}</b> del "
+                f"<b>{fecha}</b> "
+                f"está en estado {emoji} <b>{ultima.estado.capitalize()}</b>."
+            )
 
         return request_info
 

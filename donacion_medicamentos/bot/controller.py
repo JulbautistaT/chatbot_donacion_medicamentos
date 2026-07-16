@@ -95,5 +95,17 @@ class BotController:
                 self.handlers.request_session_step
             )
         )
+        # Cualquier otro tipo de mensaje (sticker, nota de voz, video, ubicación, contacto,
+        # GIF, encuesta, etc.) no calza con ningún filtro anterior: sin este handler el
+        # usuario se quedaba sin ninguna respuesta. Debe ir último para no interceptar
+        # los mensajes que ya manejan los handlers de arriba.
+        self.__application.add_handler(
+            MessageHandler(filters.ALL, self.handlers.handle_unsupported)
+        )
+
+        # Red de seguridad global: evita que una excepción no controlada dentro de un
+        # handler deje al usuario sin respuesta y sin explicación.
+        self.__application.add_error_handler(self.handlers.global_error_handler)
+
         logger.info("🤖 Bot iniciado: seguridad por ownership, revinculación por OCR, commit diferido")
         self.__application.run_polling(allowed_updates=Update.ALL_TYPES)

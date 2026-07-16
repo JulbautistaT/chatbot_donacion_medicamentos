@@ -228,7 +228,7 @@ class PhotoFlow:
                 logger.warning(f"[{telegram_id}] Error guardando archivo en flujo manual: {e}")
 
             self.sessions.finish(telegram_id, "Flujo manual completado")
-            await update.message.reply_text(
+            await update.message.reply_html(
                 f"✅ ¡Gracias! Hemos recibido todos tus archivos y tu solicitud fue registrada con el número <b>#{solicitud_obj.id}</b>.\n"
                 f"Te notificaremos cuando esté lista.",
                 reply_markup=ReplyKeyboardRemove()

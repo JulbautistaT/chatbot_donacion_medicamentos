@@ -116,3 +116,56 @@ class TelegramHandlers:
             return
 
         await self.request_session_step(update, context)
+
+    async def handle_unsupported(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Responde a tipos de mensaje que no coinciden con ningún otro handler
+        (sticker, nota de voz, video, ubicación, contacto, GIF, encuesta, etc.).
+
+        Antes, estos mensajes no calzaban con ningún filtro registrado
+        (solo se manejan texto, foto y documento) y el usuario se quedaba
+        esperando una respuesta que nunca llegaba. Debe registrarse último,
+        después de todos los MessageHandler de texto/foto/documento.
+        """
+        message = update.effective_message
+        if message is None:
+            return
+        await message.reply_text(
+            "🙏 Por ahora solo puedo leer mensajes de <b>texto</b>, <b>fotos</b> o "
+            "<b>documentos PDF</b>.\n\n"
+            "Por favor escribe tu mensaje o adjunta la fórmula médica como foto o PDF.\n"
+            "Si necesitas reiniciar, escribe /iniciar o Hola.",
+            parse_mode="HTML",
+        )
+
+    async def global_error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Red de seguridad global (registrado con Application.add_error_handler).
+
+        Se dispara ante cualquier excepción no controlada dentro de un handler
+        (fallo de base de datos, de red, etc.). Antes de este handler, esas
+        excepciones solo se registraban en el log del servidor y el usuario
+        se quedaba sin ninguna respuesta ni explicación. Aquí se le avisa,
+        se cierra su sesión por seguridad (su estado interno puede haber
+        quedado a medio actualizar) y se le indica cómo continuar.
+        """
+        logger.error(f"Excepción no controlada procesando un update: {update!r}", exc_info=context.error)
+
+        if not isinstance(update, Update):
+            return
+
+        telegram_id = update.effective_user.id if update.effective_user else None
+        if telegram_id is not None:
+            self.sessions.finish(telegram_id, f"Error no controlado: {context.error}")
+
+        message = update.effective_message
+        if message is None:
+            return
+        try:
+            await message.reply_text(
+                "⚠️ Ocurrió un problema inesperado y no pudimos continuar con tu solicitud.\n\n"
+                "Por seguridad reiniciamos tu sesión. Por favor intenta de nuevo escribiendo "
+                "/iniciar o Hola.\n\n"
+                "Si el problema se repite, espera unos minutos e inténtalo otra vez.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+        except Exception:
+            logger.exception(f"[{telegram_id}] No se pudo notificar al usuario del error")

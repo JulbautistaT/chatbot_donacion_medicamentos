@@ -214,6 +214,17 @@ class OnboardingFlow:
     # ── REQ_PHONE ─────────────────────────────────────────────────────────
     async def req_phone(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
                         telegram_id: int, session: dict, text: str) -> None:
+        # Solo se permiten dígitos y separadores de formato (espacio, guion, paréntesis,
+        # +); cualquier otro carácter (letras, símbolos) se rechaza en vez de descartarse
+        # en silencio, para no guardar un número de teléfono corrupto.
+        if not re.fullmatch(r'[\d\s\-\(\)\+]+', text.strip()):
+            await update.message.reply_text(
+                "Por favor escribe un número de teléfono válido, usando solo números.\n\n"
+                "Ejemplo: <code>3001234567</code>",
+                reply_markup=ForceReply(selective=True),
+                parse_mode="HTML",
+            )
+            return
         phone_clean = re.sub(r'\D', '', text)   # deja solo dígitos
         if not phone_clean or not (7 <= len(phone_clean) <= 15):
             await update.message.reply_text(

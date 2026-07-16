@@ -65,9 +65,9 @@ class EntregaAdmin(AdminConAyuda):
             return
         solicitudes = stock_models.Solicitud.objects.filter(entrega__in=pendientes)
         response = pdf_actions.generar_acta_entrega(solicitudes)
-        pendientes.update(acta_generada=True)
 
         solicitudes.update(estado=stock_models.Solicitud.Estado.ENTREGADA)
+        pendientes.update(acta_generada=True)
         return response
 
     def has_add_permission(self, request):
@@ -84,7 +84,7 @@ class EntregaAdmin(AdminConAyuda):
         "Consultar la fecha y las observaciones de cada entrega."
     ]
     ACCIONES = [
-        "Generar actas de entrega en formato PDF.",
+        "Generar plantilla de entrega en PDF.",
         "Eliminar entregas seleccionadas."
     ]
     CONSIDERACIONES = [

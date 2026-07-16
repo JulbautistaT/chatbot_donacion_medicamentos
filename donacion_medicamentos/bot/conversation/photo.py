@@ -45,7 +45,9 @@ class PhotoFlow:
             reply_markup=ReplyKeyboardRemove()
         )
 
-        combined_text = self.ocr.process_recipe(session["session_data"].get("pending_files", []))
+        combined_text = await asyncio.to_thread(
+            self.ocr.process_recipe, session["session_data"].get("pending_files", [])
+        )
 
         session["session_data"]["ocr_attempts"] = session["session_data"].get("ocr_attempts", 0) + 1
         current_attempt = session["session_data"]["ocr_attempts"]
@@ -90,7 +92,7 @@ class PhotoFlow:
 
             for fp in session["session_data"].get("pending_files", []):
                 try:
-                    texto_extraido = self.ocr.extract_text(fp)
+                    texto_extraido = await asyncio.to_thread(self.ocr.extract_text, fp)
                     self.requests.save_formula(solicitud_obj, fp, texto_extraido)
                 except Exception as e:
                     logger.warning(f"[{telegram_id}] Error guardando archivo en commit: {e}")
@@ -220,7 +222,7 @@ class PhotoFlow:
                 return True
 
             try:
-                texto_extraido = self.ocr.extract_text(file_path)
+                texto_extraido = await asyncio.to_thread(self.ocr.extract_text, file_path)
                 self.requests.save_formula(solicitud_obj, file_path, texto_extraido)
                 if texto_extraido:
                     logger.info(f"[{telegram_id}] OCR interno guardado ({len(texto_extraido)} chars)")

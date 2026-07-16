@@ -92,7 +92,7 @@ class RelinkFlow:
             )
             return
 
-        extracted_text = self.ocr.extract_text(file_path)
+        extracted_text = await asyncio.to_thread(self.ocr.extract_text, file_path)
         validation_result = self.ocr.validate_recipe(
             extracted_text or "", documento_relink, solicitante.nombre
         )

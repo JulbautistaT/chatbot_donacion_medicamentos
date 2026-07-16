@@ -33,7 +33,15 @@ class BotController:
     """Controlador principal del bot de Telegram (solo wiring y arranque)."""
 
     def __init__(self):
-        self.__application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
+        self.__application = (
+            Application.builder()
+            .token(settings.TELEGRAM_BOT_TOKEN)
+            .connect_timeout(20)
+            .read_timeout(20)
+            .write_timeout(20)
+            .pool_timeout(20)
+            .build()
+        )
         logger.info("🔧 Verificando configuración de OCR...")
         OCRProcessor.test_ocr_setup()
 

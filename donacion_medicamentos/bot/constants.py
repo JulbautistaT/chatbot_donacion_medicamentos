@@ -29,6 +29,9 @@ MAX_MEDICATIONS = 4
 MAX_OCR_ATTEMPTS = 2
 MAX_DOC_ATTEMPTS = 5
 
+# Antigüedad mínima (horas) para que el job de limpieza borre sobrantes en BASE_DIR/photos/
+PHOTOS_CLEANUP_HOURS = 48
+
 # Búsqueda de medicamentos (fuzzy search)
 MAX_SEARCH_RESULTS = 5        # máximo de opciones mostradas como botones
 FUZZY_SCORE_THRESHOLD = 70    # score mínimo de rapidfuzz (WRatio, 0-100)

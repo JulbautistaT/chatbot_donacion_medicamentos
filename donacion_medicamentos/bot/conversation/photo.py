@@ -1,6 +1,7 @@
 """Flujo de fotos/OCR: subida de archivos, validación de la fórmula y commit."""
 import asyncio
 import logging
+import os
 
 from telegram import ForceReply, ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
@@ -26,6 +27,15 @@ class PhotoFlow:
         self.requests = request_service
         self.ocr = ocr_service
 
+    @staticmethod
+    def _discard_file(path: str) -> None:
+        """Borra un archivo temporal de photos/ que ya no se va a usar (intento
+        rechazado o reemplazado por uno más nuevo)."""
+        try:
+            os.remove(path)
+        except OSError as e:
+            logger.warning(f"No se pudo eliminar el temporal {path}: {e}")
+
     async def process_multiple_files_with_validation(
         self, update: Update, telegram_id: int, session: dict
     ) -> None:
@@ -35,7 +45,11 @@ class PhotoFlow:
             await update.message.reply_text("❌ Error al recibir el archivo. Intenta nuevamente.")
             return
 
-        session["session_data"].setdefault("pending_files", []).append(file_path)
+        # Cada intento reemplaza al anterior (no se combinan varias fotos): el
+        # intento previo, si lo hay, ya perdió su validez y no aporta nada.
+        for old_path in session["session_data"].get("pending_files", []):
+            self._discard_file(old_path)
+        session["session_data"]["pending_files"] = [file_path]
         session["session_data"]["photos_uploaded"] = session["session_data"].get("photos_uploaded", 0) + 1
 
         await asyncio.sleep(1.5)
@@ -53,6 +67,11 @@ class PhotoFlow:
         current_attempt = session["session_data"]["ocr_attempts"]
 
         if not combined_text or len(combined_text) < 50:
+            # Intento rechazado (no se pudo leer texto): el archivo no sirve para nada más.
+            for fp in session["session_data"].get("pending_files", []):
+                self._discard_file(fp)
+            session["session_data"]["pending_files"] = []
+
             if current_attempt >= MAX_OCR_ATTEMPTS:
                 await update.message.reply_text(
                     "❌ No se pudo leer el texto del documento después de 2 intentos.\n\n"
@@ -90,10 +109,16 @@ class PhotoFlow:
                 self.sessions.finish(telegram_id, "Error en commit de solicitud")
                 return
 
-            for fp in session["session_data"].get("pending_files", []):
+            # Solo se conserva el último archivo (el que validó); cualquier otro
+            # remanente en pending_files se descarta sin guardarlo.
+            pending = session["session_data"].get("pending_files", [])
+            if pending:
+                final_file = pending[-1]
+                for fp in pending[:-1]:
+                    self._discard_file(fp)
                 try:
-                    texto_extraido = await asyncio.to_thread(self.ocr.extract_text, fp)
-                    self.requests.save_formula(solicitud_obj, fp, texto_extraido)
+                    texto_extraido = await asyncio.to_thread(self.ocr.extract_text, final_file)
+                    self.requests.save_formula(solicitud_obj, final_file, texto_extraido)
                 except Exception as e:
                     logger.warning(f"[{telegram_id}] Error guardando archivo en commit: {e}")
 
@@ -111,6 +136,11 @@ class PhotoFlow:
         else:
             doc_status = "✅ Verificado" if validation_result['document_match'] else "❌ No verificado"
             name_status = "✅ Verificado" if validation_result['name_match'] else "❌ No verificado"
+
+            # Intento rechazado (documento/nombre no coinciden): el archivo no sirve para nada más.
+            for fp in session["session_data"].get("pending_files", []):
+                self._discard_file(fp)
+            session["session_data"]["pending_files"] = []
 
             if current_attempt >= MAX_OCR_ATTEMPTS:
                 await update.message.reply_html(

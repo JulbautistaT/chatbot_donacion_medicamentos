@@ -19,32 +19,6 @@ class AdminConAyuda(admin.ModelAdmin):
         extra_context["consideraciones"] = self.CONSIDERACIONES
         return super().changelist_view(request, extra_context=extra_context)
 
-
-@admin.register(stock_models.DetalleSolicitud)
-class DetalleSolicitudAdmin(AdminConAyuda):
-    list_display = ('solicitud', 'medicamento','tipo_presentacion' ,'cantidad_entregada')
-    search_fields = ('solicitud__solicitante__nombre', 'medicamento__nombre_comercial')
-    list_filter = ('solicitud', 'medicamento')
-    raw_id_fields = ('solicitud', 'medicamento')
-
-    def has_add_permission(self, request):
-        return False
-
-    DESCRIPCION = (
-        "Aquí se muestra el detalle de los medicamentos asociados a cada solicitud. "
-        "Cada registro indica qué medicamento fue solicitado y la cantidad entregada."
-    )
-    QUE_PUEDE_HACER = [
-        "Consultar los medicamentos asociados a una solicitud.",
-        "Ver las cantidades entregadas para cada medicamento."
-    ]
-    ACCIONES = ["Eliminar registros seleccionados."]
-    CONSIDERACIONES = [
-        "La información de esta sección se genera automáticamente a partir de las solicitudes registradas en el sistema.",
-        "No se recomienda eliminar registros manualmente salvo en casos excepcionales."
-    ]
-
-
 @admin.register(stock_models.Entrega)
 class EntregaAdmin(AdminConAyuda):
     list_display = ('solicitud', 'fecha', 'persona_que_entrega', 'acta_generada', 'observaciones')
@@ -346,12 +320,30 @@ admin.site.unregister(Group)
 # Personalización visual del admin
 _original_get_app_list = admin.site.get_app_list
 
+orden_modelos = {
+    'stock': {
+        'Solicitud': 1,
+        'Entrega': 2,
+        'Medicamento': 3,
+        'Solicitante': 4,
+        'Formula': 5,
+        'DetalleSolicitud': 6,
+    },
+}
+
+
 def custom_get_app_list(request, app_label=None):
     app_list = _original_get_app_list(request, app_label)
     ocultar = {'django_celery_beat', 'django_celery_results'}
     app_list = [app for app in app_list if app['app_label'] not in ocultar]
     orden = {'stock': 1, 'anuncios': 2, 'politicas': 3, 'auth': 4}
     app_list.sort(key=lambda app: orden.get(app['app_label'], 99))
+
+    for app in app_list:
+        modelos_orden = orden_modelos.get(app['app_label'])
+        if modelos_orden:
+            app['models'].sort(key=lambda m: modelos_orden.get(m['object_name'], 99))
+
     return app_list
 
 admin.site.get_app_list = custom_get_app_list
@@ -359,3 +351,28 @@ admin.site.get_app_list = custom_get_app_list
 admin.site.site_header = "Panel de Control - Donación de Medicamentos"
 admin.site.site_title = "Administración"
 admin.site.index_title = "Sistema de Gestión"
+
+
+@admin.register(stock_models.DetalleSolicitud)
+class DetalleSolicitudAdmin(AdminConAyuda):
+    list_display = ('solicitud', 'medicamento','tipo_presentacion' ,'cantidad_entregada')
+    search_fields = ('solicitud__solicitante__nombre', 'medicamento__nombre_comercial')
+    list_filter = ('solicitud', 'medicamento')
+    raw_id_fields = ('solicitud', 'medicamento')
+
+    def has_add_permission(self, request):
+        return False
+
+    DESCRIPCION = (
+        "Aquí se muestra el detalle de los medicamentos asociados a cada solicitud. "
+        "Cada registro indica qué medicamento fue solicitado y la cantidad entregada."
+    )
+    QUE_PUEDE_HACER = [
+        "Consultar los medicamentos asociados a una solicitud.",
+        "Ver las cantidades entregadas para cada medicamento."
+    ]
+    ACCIONES = ["Eliminar registros seleccionados."]
+    CONSIDERACIONES = [
+        "La información de esta sección se genera automáticamente a partir de las solicitudes registradas en el sistema.",
+        "No se recomienda eliminar registros manualmente salvo en casos excepcionales."
+    ]

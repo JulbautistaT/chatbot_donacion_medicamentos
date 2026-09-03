@@ -158,4 +158,11 @@ class RequestService:
             if texto_extraido:
                 formula_obj.texto_ocr = texto_extraido
                 formula_obj.save(update_fields=["texto_ocr"])
+
+        # El archivo ya quedó copiado en MEDIA_ROOT/formulas/: el temporal en
+        # BASE_DIR/photos/ sobra y solo duplica espacio en disco.
+        try:
+            photo_path.unlink()
+        except OSError as e:
+            logger.warning(f"No se pudo eliminar el temporal {file_path} tras guardarlo en media/formulas/: {e}")
         return formula_obj

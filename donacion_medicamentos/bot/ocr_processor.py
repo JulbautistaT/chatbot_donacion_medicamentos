@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 class OCRProcessor:
     """Procesador de OCR con pipeline adaptativo (ligero vs rescate)."""
 
+    EARLY_EXIT_MIN_CONF = 85.0
+    EARLY_EXIT_MIN_CHARS = 30
+
     @staticmethod
     def _open_image(image_path: str) -> Image.Image:
         image = Image.open(image_path)
@@ -263,7 +266,10 @@ class OCRProcessor:
             best_score = -1.0
             best_char_count = 0
 
+            early_exit = False
             for variant_name, pil_image in variants:
+                if early_exit:
+                    break
                 for config, config_name in configs:
                     try:
                         text, score, char_count, conf_avg = OCRProcessor._ocr_with_score(
@@ -278,6 +284,17 @@ class OCRProcessor:
                             best_text = text
                             best_score = score
                             best_char_count = char_count
+
+                        if (
+                            conf_avg >= OCRProcessor.EARLY_EXIT_MIN_CONF
+                            and char_count >= OCRProcessor.EARLY_EXIT_MIN_CHARS
+                        ):
+                            logger.info(
+                                f"?? Early exit: {variant_name}/{config_name} ya es suficientemente bueno "
+                                f"(conf={conf_avg:.1f}, chars={char_count})"
+                            )
+                            early_exit = True
+                            break
                     except Exception as e:
                         logger.warning(f"?? Fall? {variant_name} / {config_name}: {e}")
 

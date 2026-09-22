@@ -1,15 +1,21 @@
 import hashlib
 from django.conf import settings
 from django.contrib import auth
-from django.http.response import HttpResponseForbidden
-from django.views.static import serve
+from django.core.files.storage import default_storage
+from django.http.response import FileResponse, Http404, HttpResponseForbidden
 from jwt import decode as jwt_decode
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import UntypedToken
 
 
+def _serve_from_storage(path):
+    """Sirve `path` desde el STORAGES['default'] configurado (disco local o R2/S3)."""
+    if not default_storage.exists(path):
+        raise Http404
+    return FileResponse(default_storage.open(path, 'rb'), filename=path.rsplit('/', 1)[-1])
 
-def protected_serve(request, path, document_root=None, show_indexes=False):
+
+def protected_serve(request, path, show_indexes=False):
     """ Utility function: revisa el nombre del archivo pedido para ver si es del usuario o no.
         El proceso de validación de propiedad del archivo se hace consultando la primera parte
         de la ruta del archivo <hashmd5> para compararlo con el hashm de md5("request.user.pk").
@@ -60,11 +66,11 @@ def protected_serve(request, path, document_root=None, show_indexes=False):
         )
 
         if media_user or media_public or media_user_admin:
-            return serve(request, path, document_root, show_indexes)
+            return _serve_from_storage(path)
         else:
             return HttpResponseForbidden()
     else:
         if hashmd5_public == filename_list[0]:
-            return serve(request, path, document_root, show_indexes)
+            return _serve_from_storage(path)
         else:
             return HttpResponseForbidden()

@@ -68,20 +68,5 @@ services:
       - factos_network
     restart: unless-stopped
 
-  # NGINX: Reverse proxy for the application
-  nginx:
-    restart: always
-    image: nginx:latest
-    ports:
-      - '81:80'
-    depends_on:
-      - donacion_medicamentos
-    volumes:
-      - ./nginx:/etc/nginx/conf.d # Nginx configuration
-      - ./static:/home/app/static # Static files
-      - ./media:/home/app/media # Media files
-    networks:
-      - factos_network
-
 volumes:
   postgres_data:

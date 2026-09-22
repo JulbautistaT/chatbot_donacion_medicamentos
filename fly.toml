@@ -1,0 +1,31 @@
+# Configuración de despliegue en Fly.io.
+# Cambia "app" por un nombre único (fly te avisa si ya existe al hacer `fly launch`).
+app = "donacion-medicamentos"
+primary_region = "bog"
+
+[build]
+
+[processes]
+app = "gunicorn donacion_medicamentos.wsgi:application --workers 1 --timeout 120 --bind 0.0.0.0:8000 --forwarded-allow-ips '*'"
+bot = "python bot.py"
+
+[deploy]
+release_command = "sh -c 'python manage.py migrate --noinput && python manage.py collectstatic --noinput'"
+
+[http_service]
+internal_port = 8000
+force_https = true
+auto_stop_machines = true
+auto_start_machines = true
+min_machines_running = 0
+processes = ["app"]
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"
+processes = ["app"]
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"
+processes = ["bot"]

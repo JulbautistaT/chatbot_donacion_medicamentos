@@ -4,6 +4,7 @@ asttokens==3.0.0
 async-timeout==5.0.1
 attrs==25.3.0
 beautifulsoup4==4.13.4
+boto3==1.35.99
 certifi==2025.4.26
 charset-normalizer==3.4.1
 comm==0.2.2
@@ -13,6 +14,7 @@ deep-translator==1.11.4
 Django==5.2
 django-admin-rangefilter==0.13.2
 django-filter==25.1
+django-storages==1.14.4
 djangorestframework==3.16.0
 djangorestframework_simplejwt==5.5.0
 exceptiongroup==1.2.2
@@ -75,4 +77,5 @@ urllib3==2.4.0
 wcwidth==0.2.13
 webdriver-manager==4.0.2
 websocket-client==1.8.0
+whitenoise==6.11.0
 wsproto==1.2.0

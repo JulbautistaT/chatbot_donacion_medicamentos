@@ -15,10 +15,10 @@ load_dotenv(dotenv_path)
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-x@pvoyrf%i_^m&m03l=wvn4qfe7+ohz_1h10p*tkd_(f^3wd8o'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY') or 'django-insecure-x@pvoyrf%i_^m&m03l=wvn4qfe7+ohz_1h10p*tkd_(f^3wd8o'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = bool(os.getenv('DJANGO_DEBUG', True))
+DEBUG = os.getenv('DJANGO_DEBUG', 't').lower() in ('t', 'true', '1')
 
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost').split(',')
@@ -50,6 +50,7 @@ INSTALLED_APPS += [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -91,6 +92,8 @@ if os.getenv('DB_NAME'):
             'PASSWORD': os.getenv('DB_PASSWORD'),
             'HOST': os.getenv('DB_HOST', 'localhost'),
             'PORT': os.getenv('DB_PORT', '5432'),
+            # 'disable' para el Postgres local de docker-compose; 'require' para Neon u otro proveedor gestionado
+            'OPTIONS': {'sslmode': os.getenv('DB_SSLMODE', 'disable')},
         }
     }
 else:
@@ -136,6 +139,37 @@ TIME_ZONE = 'America/Bogota'
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'static'
+
+# Si hay credenciales de Cloudflare R2 (o cualquier S3 compatible), los archivos
+# de MEDIA se guardan ahí en vez del disco local del contenedor (efímero en Fly.io).
+# El acceso sigue pasando por donacion_medicamentos.media.protected_serve, que
+# nunca expone la URL directa del bucket.
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+if AWS_STORAGE_BUCKET_NAME:
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
+    AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'auto')
+    AWS_S3_ADDRESSING_STYLE = 'path'
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    default_storage_backend = 'storages.backends.s3.S3Storage'
+else:
+    default_storage_backend = 'django.core.files.storage.FileSystemStorage'
+
+STORAGES = {
+    'default': {
+        'BACKEND': default_storage_backend,
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+
+# Antes lo imponía nginx (client_max_body_size 150M) para las fórmulas médicas subidas
+DATA_UPLOAD_MAX_MEMORY_SIZE = 150 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 150 * 1024 * 1024
 
 
 # Media files

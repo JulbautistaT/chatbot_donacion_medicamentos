@@ -25,7 +25,7 @@ from . import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
-    path(f'{settings.MEDIA_URL.strip("/")}/<path:path>', media.protected_serve, {'document_root': settings.MEDIA_ROOT}),
+    path(f'{settings.MEDIA_URL.strip("/")}/<path:path>', media.protected_serve),
     path('politica-de-datos/', views.politica_datos, name='politica_datos'),
     path('anuncios/', views.anuncios_disponibles, name= 'anuncios')
 

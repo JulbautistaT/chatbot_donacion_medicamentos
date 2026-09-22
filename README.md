@@ -68,7 +68,6 @@ donacion_medicamentos/
 │   └── admin.py            # Interfaces y acciones personalizadas en el Panel Admin
 ├── templates/              # Plantillas HTML
 ├── utils/                  # Scripts de utilidad (ej. poblar base de datos)
-├── nginx/                  # Configuración de Servidor Web Nginx
 ├── docker-compose.yml      # Declaración de servicios (Django, Bot, Postgres)
 ├── Dockerfile              # Configuración del contenedor de la aplicación
 └── requirements.txt        # Dependencias de Python del proyecto
@@ -84,7 +83,7 @@ donacion_medicamentos/
 * **Integración Conversacional:** [python-telegram-bot 22.1](https://python-telegram-bot.org/)
 * **Procesamiento de Imágenes y Documentos (OCR):** [pytesseract](https://github.com/madmaze/pytesseract) + [opencv-python](https://opencv.org/) + [pdf2image](https://github.com/Belval/pdf2image)
 * **Generación de Reportes PDF:** [ReportLab](https://www.reportlab.com/)
-* **Servidor Web y Despliegue:** [Gunicorn](https://gunicorn.org/) + [Nginx](https://www.nginx.com/) + [Docker & Docker Compose](https://www.docker.com/)
+* **Servidor Web y Despliegue:** [Gunicorn](https://gunicorn.org/) + [WhiteNoise](https://whitenoise.readthedocs.io/) (estáticos) + [Docker & Docker Compose](https://www.docker.com/)
 
 ---
 
@@ -143,7 +142,11 @@ docker-compose up -d
    ```bash
    docker-compose exec donacion_medicamentos python manage.py createsuperuser
    ```
-3. *(Opcional)* Carga datos iniciales de prueba en el inventario:
+3. Recolecta los archivos estáticos (los sirve WhiteNoise, no nginx):
+   ```bash
+   docker-compose exec donacion_medicamentos python manage.py collectstatic --noinput
+   ```
+4. *(Opcional)* Carga datos iniciales de prueba en el inventario:
    ```bash
    docker-compose exec donacion_medicamentos python utils/poblar_db.py
    ```
@@ -153,7 +156,7 @@ docker-compose up -d
 ## 💡 Uso del Sistema
 
 ### Para el Administrador (Web)
-1. Ingresa a la interfaz administrativa en [http://localhost:81/admin](http://localhost:81/admin).
+1. Ingresa a la interfaz administrativa en [http://localhost:8000/admin](http://localhost:8000/admin).
 2. Administra los **Medicamentos** 
 3. Procesa las **Solicitudes** entrantes.
 4. Genera las actas de entrega oficiales en formato PDF haciendo uso de las acciones personalizadas dentro del panel de **Entregas**. Recuerda imprimirlas para la firma física.

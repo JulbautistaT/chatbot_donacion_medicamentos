@@ -69,7 +69,7 @@ donacion_medicamentos/
 ├── templates/              # Plantillas HTML
 ├── utils/                  # Scripts de utilidad (ej. poblar base de datos)
 ├── nginx/                  # Configuración de Servidor Web Nginx
-├── docker-compose.yml      # Declaración de servicios (Django, Bot, Redis, Postgres)
+├── docker-compose.yml      # Declaración de servicios (Django, Bot, Postgres)
 ├── Dockerfile              # Configuración del contenedor de la aplicación
 └── requirements.txt        # Dependencias de Python del proyecto
 ```
@@ -81,7 +81,6 @@ donacion_medicamentos/
 * **Framework Principal:** [Django 5.2](https://www.djangoproject.com/)
 * **Lenguaje:** [Python 3.10](https://www.python.org/)
 * **Base de Datos:** [SQLite](https://www.sqlite.org/) (Por defecto para desarrollo) | [PostgreSQL](https://www.postgresql.org/) (Soportado mediante variables de entorno)
-* **Motor Asíncrono y Mensajería:** [Celery](https://docs.celeryq.dev/) + [Redis](https://redis.io/)
 * **Integración Conversacional:** [python-telegram-bot 22.1](https://python-telegram-bot.org/)
 * **Procesamiento de Imágenes y Documentos (OCR):** [pytesseract](https://github.com/madmaze/pytesseract) + [opencv-python](https://opencv.org/) + [pdf2image](https://github.com/Belval/pdf2image)
 * **Generación de Reportes PDF:** [ReportLab](https://www.reportlab.com/)
@@ -170,16 +169,13 @@ docker-compose up -d
 
 ## 📊 Monitoreo y Logs
 
-Puedes seguir la ejecución del bot de Telegram y de Celery en tiempo real a través de Docker:
+Puedes seguir la ejecución del bot de Telegram y de Django en tiempo real a través de Docker:
 ```bash
 # Ver logs del Bot de Telegram
 docker-compose logs -f telegram_bot
 
 # Ver logs de Django
 docker-compose logs -f donacion_medicamentos
-
-# Ver logs del gestor de tareas Celery
-docker-compose logs -f celery
 ```
 
 ---

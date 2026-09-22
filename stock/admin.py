@@ -276,7 +276,10 @@ class SolicitudAdmin(AdminConAyuda):
         "Verifique cuidadosamente y actualice la información antes de cambiar el estado de una solicitud.",
         "Las notificaciones por Telegram solo se enviarán a las solicitudes aceptadas.",
         "Solo las solicitudes aceptadas podrán generar registros de entrega y actas de entrega.",
-        "La información descargada en formato CSV puede utilizarse para seguimiento y auditoría."
+        "La información descargada en formato CSV puede utilizarse para seguimiento y auditoría.",
+        "El campo 'Observaciones' se incluye en el mensaje de Telegram enviado al solicitante al "
+        "notificar la aceptación o el rechazo, por lo que debe redactarse de forma clara para el "
+        "usuario (ej. motivo del rechazo o indicaciones para reclamar los medicamentos)."
     ]
 
 
@@ -334,8 +337,6 @@ orden_modelos = {
 
 def custom_get_app_list(request, app_label=None):
     app_list = _original_get_app_list(request, app_label)
-    ocultar = {'django_celery_beat', 'django_celery_results'}
-    app_list = [app for app in app_list if app['app_label'] not in ocultar]
     orden = {'stock': 1, 'anuncios': 2, 'politicas': 3, 'auth': 4}
     app_list.sort(key=lambda app: orden.get(app['app_label'], 99))
 

@@ -37,7 +37,6 @@ INSTALLED_APPS = [
 
 # THIRD PARTY APPS
 INSTALLED_APPS += [
-    'django_celery_results',
     'rangefilter',
 ]
 
@@ -160,15 +159,3 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'your-telegram-bot-token')
 # OWN CONFIGURATION
 SHOW_BROWSER = bool(os.getenv('SHOW_BROWSER'))
 
-
-# Celery
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/1"
-CELERY_RESULT_BACKEND = "django-db"
-CELERY_CACHE_BACKEND = "django-cache"
-CELERY_ACCEPT_CONTENT = ["application/json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = TIME_ZONE
-CELERY_RESULT_EXTENDED = True

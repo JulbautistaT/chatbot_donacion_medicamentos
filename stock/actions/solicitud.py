@@ -89,8 +89,12 @@ def notificar_solicitudes_aceptadas(modeladmin, request, queryset):
             f"Hola {solicitud.solicitante.nombre},\n\n"
             f"Tu solicitud fue aprobada.\n\n"
             f"📌 Acércate a reclamar tus medicamentos.\n\n"
-            f"Gracias 🙌"
         )
+
+        if solicitud.observaciones:
+            mensaje += f"📝 Observaciones: {solicitud.observaciones}\n\n"
+
+        mensaje += "Gracias 🙌"
 
         ok = enviar_mensaje_telegram(
             solicitud.solicitante.telegram_id,
@@ -124,6 +128,12 @@ def notificar_solicitudes_rechazadas(modeladmin, request, queryset):
             f"❌ *Solicitud #{solicitud.pk} RECHAZADA*\n\n"
             f"Hola {solicitud.solicitante.nombre},\n\n"
             f"Tu solicitud no pudo ser aprobada en esta ocasión.\n\n"
+        )
+
+        if solicitud.observaciones:
+            mensaje += f"📝 Motivo: {solicitud.observaciones}\n\n"
+
+        mensaje += (
             f"📌 Puedes realizar una nueva solicitud más adelante.\n\n"
             f"Gracias 🙌"
         )

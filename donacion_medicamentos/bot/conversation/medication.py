@@ -60,8 +60,9 @@ class MedicationFlow:
                 "💡 <b>Asegúrate de que se vean claramente:</b>\n"
                 "  • Nombre del paciente\n"
                 "  • Número de documento\n"
+                "  • Fecha de la fórrmula\n"
                 "  • Lista de medicamentos\n\n"
-                "⚠️ <b>Para enviarla: </b> Da click en el icono📎y selecciona el archivo o la imagen de la fórmula médica. \n\n"
+                "⚠️ <b>Para enviarla: </b> Da click en el icono📎 y selecciona el archivo o la imagen de la fórmula médica. \n\n"
                 "🔍 El sistema validará automáticamente la información.",
                 reply_markup=ReplyKeyboardRemove(),
                 parse_mode="HTML"
@@ -167,7 +168,13 @@ class MedicationFlow:
         else:
             mensaje = (
                 "✅ ¡Perfecto! Ya hemos registrado todos los medicamentos.\n\n"
+
                 "📄 Ahora, por favor <b>sube una foto o un PDF de la fórmula médica</b>\n\n"
+                "💡 <b>Asegúrate de que se vean claramente:</b>\n"
+                "  • Nombre del paciente\n"
+                "  • Número de documento\n"
+                "  • Fecha de la fórrmula\n"
+                "  • Lista de medicamentos\n\n"                
                 "<b>Sigue estos pasos:</b>\n\n"
                 "1️⃣ Pulsa el icono del clip 📎 para adjuntar un archivo.\n\n"
                 "2️⃣ Si vas a enviar una <b>foto</b>:\n"
@@ -194,13 +201,9 @@ class MedicationFlow:
 
         if chosen is None:
             if NONE_OF_ABOVE_PATTERN.match(text.strip()):
-                # El usuario indica que ninguna opción mostrada corresponde: se da por
-                # no identificado este medicamento (se validará con la fórmula médica).
                 query = session["session_data"].get("last_med_query", text)
                 await self.__mark_medication_unidentified(update, telegram_id, session, query)
                 return
-            # El texto no coincide con ningún botón: se trata como una nueva búsqueda
-            # para no dejar al usuario atrapado si ninguna opción era la correcta.
             await self.__search_and_reply(update, telegram_id, session, text)
             return
 

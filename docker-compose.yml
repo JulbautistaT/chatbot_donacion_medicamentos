@@ -55,16 +55,6 @@ services:
     networks:
       - factos_network
 
-  celery:
-    <<: *x-default-config
-    volumes:
-      - .:/home/app/donacion_medicamentos
-      - ./media:/home/app/media
-      - ./logs:/home/app/logs
-    command: celery -A donacion_medicamentos worker -l INFO --queues=invoice_processing,default
-    networks:
-      - factos_network
-
   telegram_bot:
     <<: *x-default-config
     volumes:
@@ -74,20 +64,9 @@ services:
     command: python bot.py
     depends_on:
       - donacion_medicamentos
-      - redis
     networks:
       - factos_network
     restart: unless-stopped
-
-  # celerybeat:
-  #   <<: *x-default-config
-  #   volumes:
-  #     - .:/home/app/donacion_medicamentos
-  #     - ./media:/home/app/media
-  #     - ./logs:/home/app/logs
-  #   command: celery -A donacion_medicamentos beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler --pidfile=/home/app/celery.pid
-  #   networks:
-  #     - factos_network
 
   # NGINX: Reverse proxy for the application
   nginx:
@@ -101,19 +80,6 @@ services:
       - ./nginx:/etc/nginx/conf.d # Nginx configuration
       - ./static:/home/app/static # Static files
       - ./media:/home/app/media # Media files
-    networks:
-      - factos_network
-
-  redis:
-    image: redis:latest
-    restart: always
-    command: redis-server
-    volumes:
-      - ../redis_volume:/data
-    expose:
-      - 6379
-    ports:
-      - '6379:6379'
     networks:
       - factos_network
 

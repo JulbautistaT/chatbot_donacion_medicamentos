@@ -193,7 +193,12 @@ class Solicitud(models.Model):
     observaciones = models.TextField(
         blank=True,
         null=True,
-        help_text='Observaciones adicionales'
+        help_text=(
+            'Observaciones adicionales. Este texto se incluye en el mensaje de Telegram '
+            'que se envía al solicitante al notificar la aceptación o el rechazo de la '
+            'solicitud, por lo que debe redactarse pensando en que el usuario lo leerá '
+            '(ej. motivo del rechazo o indicaciones para la entrega).'
+        )
     )
 
     notificada_aceptacion = models.BooleanField(

@@ -64,11 +64,14 @@ ENV HOME=/home/app
 WORKDIR $HOME
 ENV PATH=$HOME/.local/bin:$PATH
 ENV DISPLAY=:99
-COPY . .
+COPY --chown=app:app . .
 
 ADD requirements.txt $HOME/requirements.txt
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
-CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24"]
+# No necesita base de datos ni secretos: WhiteNoise sirve estos archivos desde la imagen.
+RUN python manage.py collectstatic --noinput
+
+CMD ["bash", "start.sh"]

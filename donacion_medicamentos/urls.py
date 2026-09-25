@@ -23,6 +23,7 @@ from donacion_medicamentos import media
 from . import views
 
 urlpatterns = [
+    path('health/', views.health, name='health'),
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
     path(f'{settings.MEDIA_URL.strip("/")}/<path:path>', media.protected_serve),

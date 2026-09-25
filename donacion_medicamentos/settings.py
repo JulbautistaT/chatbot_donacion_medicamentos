@@ -140,8 +140,9 @@ TIME_ZONE = 'America/Bogota'
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'static'
 
-# Si hay credenciales de Cloudflare R2 (o cualquier S3 compatible), los archivos
-# de MEDIA se guardan ahí en vez del disco local del contenedor (efímero en Fly.io).
+# Si hay credenciales de un bucket S3 compatible (Backblaze B2, Cloudflare R2...), los
+# archivos de MEDIA se guardan ahí en vez del disco local del contenedor (efímero en
+# las plataformas gratuitas).
 # El acceso sigue pasando por donacion_medicamentos.media.protected_serve, que
 # nunca expone la URL directa del bucket.
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
@@ -154,7 +155,7 @@ if AWS_STORAGE_BUCKET_NAME:
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = False
     AWS_S3_FILE_OVERWRITE = False
-    default_storage_backend = 'storages.backends.s3.S3Storage'
+    default_storage_backend = 'donacion_medicamentos.storage.ProtectedS3Storage'
 else:
     default_storage_backend = 'django.core.files.storage.FileSystemStorage'
 

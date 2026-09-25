@@ -1,6 +1,11 @@
+from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404
-from politicas.models import PoliticaDatos  
+from politicas.models import PoliticaDatos
 from anuncios.models import Anuncio
+
+def health(request):
+    # Sin tocar la base de datos: los pings periódicos no deben despertar a Neon.
+    return HttpResponse('ok')
 
 def politica_datos(request):
     politica = get_object_or_404(PoliticaDatos, es_activa=True)

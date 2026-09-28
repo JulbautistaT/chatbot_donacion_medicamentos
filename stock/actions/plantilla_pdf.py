@@ -1,4 +1,5 @@
 import os
+from django.conf import settings
 from django.http import HttpResponse
 
 from reportlab.lib import colors
@@ -228,8 +229,8 @@ def generar_acta_entrega(queryset):
 
     elements.append(Spacer(1, 15))
 
-    texto_datos = """
-    Al firmar la presente plantilla, el beneficiario certifica haber recibido los medicamentos relacionados anteriormente en las cantidades indicadas y declara la aceptación de la Política de Tratamiento de Datos Personales, disponible para consulta en el sitio web ---. La firma de este documento constituye constancia de recepción y aceptación de las condiciones aquí descritas.
+    texto_datos = f"""
+    Al firmar la presente plantilla, el beneficiario certifica haber recibido los medicamentos relacionados anteriormente en las cantidades indicadas y declara la aceptación de la Política de Tratamiento de Datos Personales, disponible para consulta en el sitio web {settings.POLITICA_DATOS_URL}. La firma de este documento constituye constancia de recepción y aceptación de las condiciones aquí descritas.
     """
 
     elements.append(

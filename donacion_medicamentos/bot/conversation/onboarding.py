@@ -30,14 +30,13 @@ class OnboardingFlow:
         """
         self.sessions.create(telegram_id)
 
+        from django.conf import settings
         from politicas.models import PoliticaDatos
+        url = settings.POLITICA_DATOS_URL
         try:
-            politica_activa = PoliticaDatos.objects.get(es_activa=True)
-            version = politica_activa.version
-            url = "http://127.0.0.1:8000/politica-de-datos/"
+            version = PoliticaDatos.objects.get(es_activa=True).version
         except PoliticaDatos.DoesNotExist:
             version = "1.0"
-            url = "http://127.0.0.1:8000/politica-de-datos/"
 
         await update.message.reply_html(
             f"👋 ¡Hola! Bienvenido al sistema de donación de medicamentos. 💊🤝\n\n"

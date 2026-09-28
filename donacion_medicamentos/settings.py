@@ -178,6 +178,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 MEDIA_URL_PUBLIC = 'public'
 MEDIA_HOST = os.getenv('MEDIA_HOST', '')
+# Enlace público a la política de datos (bot de Telegram y actas de entrega)
+POLITICA_DATOS_URL = f"{(MEDIA_HOST or 'http://127.0.0.1:8000').rstrip('/')}/politica-de-datos/"
 
 
 

@@ -1,11 +1,14 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Política de Tratamiento de Datos Personales del Sistema de Donación de Medicamentos. Conozca cómo protegemos su información general y médica de acuerdo con la Ley 1581 de 2012 en Colombia.">
-    <title>{{ politica.titulo }} | Donación de Medicamentos</title>
-    
+    <meta name="description" content="Política de Tratamiento de Datos Personales de Obairo, el bot de donación de medicamentos. Conozca cómo protegemos su información general y médica de acuerdo con la Ley 1581 de 2012 en Colombia.">
+    <meta name="theme-color" content="#229ED9">
+    <title>{{ politica.titulo }} | Obairo</title>
+    <link rel="icon" type="image/png" href="{% static 'politicas/favicon.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'politicas/obairo.jpg' %}">
+
     <!-- Google Fonts: Inter (for body) & Outfit (for headings) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,10 +23,13 @@
         }
 
         :root {
-            --primary: #0284c7;
-            --primary-light: #e0f2fe;
-            --primary-dark: #0369a1;
-            --primary-gradient: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            /* Azul de Telegram (#2AABEE / #229ED9); los tonos oscuros se usan en
+               textos y enlaces para mantener buen contraste sobre blanco. */
+            --telegram: #2AABEE;
+            --primary: #1778b8;
+            --primary-light: #e7f5fd;
+            --primary-dark: #145f91;
+            --primary-gradient: linear-gradient(135deg, #229ED9 0%, #1778b8 100%);
             --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             
             --text-main: #1e293b;
@@ -94,7 +100,21 @@
         }
 
         .brand-logo .logo-icon {
-            font-size: 1.5rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            box-shadow: 0 0 0 2px var(--telegram);
+        }
+
+        .hero-avatar {
+            width: 112px;
+            height: 112px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+            display: block;
+            margin: 0 auto 1.25rem;
+            animation: fadeInDown 0.5s ease-out;
         }
 
         .nav-links a {
@@ -344,6 +364,23 @@
 
         /* Responsive Breakpoints */
         @media (max-width: 768px) {
+            .top-navbar {
+                padding: 0.75rem 1rem;
+            }
+
+            .nav-links a {
+                padding: 0.5rem 0.75rem;
+            }
+
+            .hero-banner {
+                padding: 2.5rem 1rem;
+            }
+
+            .hero-avatar {
+                width: 88px;
+                height: 88px;
+            }
+
             .hero-banner h1 {
                 font-size: 2rem;
             }
@@ -363,18 +400,19 @@
 
     <!-- Navbar -->
     <header class="top-navbar">
-        <a href="https://t.me/donacion_medicamentos_bot" class="brand-logo" id="nav-brand">
-            <span class="logo-icon">💊</span>
-            <span>SaludDonar Bot</span>
+        <a href="https://t.me/Obairo_medicamentos_bot" class="brand-logo" id="nav-brand">
+            <img class="logo-icon" src="{% static 'politicas/obairo.jpg' %}" alt="" width="36" height="36">
+            <span>Obairo</span>
         </a>
         <nav class="nav-links">
-            <a href="https://t.me/donacion_medicamentos_bot" id="nav-back-bot">Regresar al Bot de Telegram</a>
+            <a href="https://t.me/Obairo_medicamentos_bot" id="nav-back-bot">Volver al bot</a>
         </nav>
     </header>
 
     <!-- Hero Banner -->
     <section class="hero-banner">
         <div class="hero-banner-content">
+            <img class="hero-avatar" src="{% static 'politicas/obairo.jpg' %}" alt="Obairo, bot de donación de medicamentos" width="112" height="112">
             <span class="badge-status">Documento Oficial</span>
             <h1 id="policy-main-title">{{ politica.titulo }}</h1>
             <div class="meta-info">
@@ -394,7 +432,7 @@
 
     <!-- Footer -->
     <footer>
-        <p><strong>Sistema de Donación de Medicamentos</strong> — Plataforma Solidaria</p>
+        <p><strong>Obairo</strong> · Junta Acueducto Comunitario Popular 1</p>
         <p>En cumplimiento con la Ley 1581 de 2012 de la República de Colombia.</p>
     </footer>
 

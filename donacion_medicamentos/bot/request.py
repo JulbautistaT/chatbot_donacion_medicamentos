@@ -143,10 +143,12 @@ class RequestService:
 
     def save_formula(
         self, solicitud_obj: stock_models.Solicitud, file_path: str,
-        texto_extraido: Optional[str]
+        texto_extraido: Optional[str], keep_temp: bool = False
     ) -> stock_models.Formula:
         """Guarda la fórmula (archivo + texto OCR). Antes inline en los flujos de fotos.
 
+        keep_temp=True conserva el temporal para hacerle OCR después; quien lo pide
+        se encarga de borrarlo.
         Las excepciones se manejan en el llamador, igual que en el original.
         """
         photo_path = Path(file_path)
@@ -158,6 +160,9 @@ class RequestService:
             if texto_extraido:
                 formula_obj.texto_ocr = texto_extraido
                 formula_obj.save(update_fields=["texto_ocr"])
+
+        if keep_temp:
+            return formula_obj
 
         # El archivo ya quedó copiado en MEDIA_ROOT/formulas/: el temporal en
         # BASE_DIR/photos/ sobra y solo duplica espacio en disco.

@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 
 import cv2
@@ -19,6 +20,24 @@ class OCRProcessor:
 
     EARLY_EXIT_MIN_CONF = 85.0
     EARLY_EXIT_MIN_CHARS = 30
+    # Las fotos enviadas como archivo llegan a resolución completa (~4000 px): por
+    # encima de este ancho solo encarecen el OCR (CPU y RAM) sin mejorar la lectura.
+    MAX_WIDTH = 2000
+    # Tope de ejecuciones de Tesseract por imagen (0 = sin tope). Útil en servidores
+    # con muy poca CPU, como el plan gratuito de Render.
+    MAX_ATTEMPTS = int(os.getenv('OCR_MAX_ATTEMPTS', '0') or 0)
+
+    @staticmethod
+    def _fit_width(gray: np.ndarray) -> np.ndarray:
+        """Lleva el ancho a [1500, MAX_WIDTH]: agranda las imágenes pequeñas y reduce las enormes."""
+        h, w = gray.shape
+        if w < 1500:
+            scale = 1500 / w
+            return cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+        if w > OCRProcessor.MAX_WIDTH:
+            scale = OCRProcessor.MAX_WIDTH / w
+            return cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        return gray
 
     @staticmethod
     def _open_image(image_path: str) -> Image.Image:
@@ -34,6 +53,9 @@ class OCRProcessor:
         w, h = image.size
         if w < min_width:
             image = image.resize((min_width, int(h * min_width / w)), Image.Resampling.LANCZOS)
+        elif w > OCRProcessor.MAX_WIDTH:
+            max_w = OCRProcessor.MAX_WIDTH
+            image = image.resize((max_w, int(h * max_w / w)), Image.Resampling.LANCZOS)
         return image
 
     @staticmethod
@@ -74,10 +96,7 @@ class OCRProcessor:
                 return None
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img.copy()
-            h, w = gray.shape
-            if w < 1500:
-                scale = 1500 / w
-                gray = cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+            gray = OCRProcessor._fit_width(gray)
 
             metrics = OCRProcessor._compute_metrics(gray)
             variants = {"gray": gray}
@@ -108,11 +127,7 @@ class OCRProcessor:
             logger.info(f"?? Imagen original: {img.shape[1]}x{img.shape[0]}")
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img.copy()
-
-            h, w = gray.shape
-            if w < 1500:
-                scale = 1500 / w
-                gray = cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+            gray = OCRProcessor._fit_width(gray)
 
             mean_brightness = np.mean(gray)
             if mean_brightness < 80:
@@ -205,8 +220,15 @@ class OCRProcessor:
 
     @staticmethod
     def _ocr_with_score(pil_image: Image.Image, config: str, lang: str) -> tuple[str, float, int, float]:
-        text = pytesseract.image_to_string(pil_image, lang=lang, config=config)
+        # Una sola pasada de Tesseract: el texto se reconstruye línea a línea desde
+        # image_to_data en vez de repetir el OCR con image_to_string.
         data = pytesseract.image_to_data(pil_image, lang=lang, config=config, output_type=pytesseract.Output.DICT)
+        lines: dict[tuple, list[str]] = {}
+        for i, word in enumerate(data.get("text", [])):
+            if word and word.strip():
+                key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+                lines.setdefault(key, []).append(word)
+        text = "\n".join(" ".join(words) for words in lines.values())
         confs = []
         for c in data.get("conf", []):
             if isinstance(c, (int, float)) and c >= 0:
@@ -224,6 +246,7 @@ class OCRProcessor:
     @staticmethod
     def extract_text_from_image(image_path: str) -> str:
         """Extrae texto de una imagen con pipeline adaptativo."""
+        start = time.monotonic()
         try:
             light = OCRProcessor._light_preprocess(image_path)
             use_rescue = True
@@ -267,10 +290,16 @@ class OCRProcessor:
             best_char_count = 0
 
             early_exit = False
+            attempts = 0
             for variant_name, pil_image in variants:
                 if early_exit:
                     break
                 for config, config_name in configs:
+                    if OCRProcessor.MAX_ATTEMPTS and attempts >= OCRProcessor.MAX_ATTEMPTS:
+                        logger.info(f"?? Tope de {OCRProcessor.MAX_ATTEMPTS} intentos alcanzado (OCR_MAX_ATTEMPTS)")
+                        early_exit = True
+                        break
+                    attempts += 1
                     try:
                         text, score, char_count, conf_avg = OCRProcessor._ocr_with_score(
                             pil_image,
@@ -318,6 +347,7 @@ class OCRProcessor:
             else:
                 logger.warning("?? No se extrajo texto de la imagen")
 
+            logger.info(f"?? OCR de imagen terminado en {time.monotonic() - start:.1f} s ({attempts} intento(s))")
             return best_text.strip()
 
         except Exception as e:

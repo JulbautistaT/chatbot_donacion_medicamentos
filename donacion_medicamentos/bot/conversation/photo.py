@@ -36,6 +36,19 @@ class PhotoFlow:
         except OSError as e:
             logger.warning(f"No se pudo eliminar el temporal {path}: {e}")
 
+    async def _store_ocr_text(self, formula_obj, file_path: str, telegram_id: int) -> None:
+        """OCR interno de una fórmula ya guardada (flujo manual); borra el temporal al final."""
+        try:
+            texto_extraido = await asyncio.to_thread(self.ocr.extract_text, file_path)
+            if texto_extraido:
+                formula_obj.texto_ocr = texto_extraido
+                formula_obj.save(update_fields=["texto_ocr"])
+                logger.info(f"[{telegram_id}] OCR interno guardado ({len(texto_extraido)} chars)")
+        except Exception as e:
+            logger.warning(f"[{telegram_id}] Error en OCR interno del flujo manual: {e}")
+        finally:
+            self._discard_file(file_path)
+
     async def process_multiple_files_with_validation(
         self, update: Update, telegram_id: int, session: dict
     ) -> None:
@@ -117,8 +130,9 @@ class PhotoFlow:
                 for fp in pending[:-1]:
                     self._discard_file(fp)
                 try:
-                    texto_extraido = await asyncio.to_thread(self.ocr.extract_text, final_file)
-                    self.requests.save_formula(solicitud_obj, final_file, texto_extraido)
+                    # Cada intento reemplaza al anterior, así que combined_text ya es el
+                    # texto de final_file: no se repite el OCR.
+                    self.requests.save_formula(solicitud_obj, final_file, combined_text.strip())
                 except Exception as e:
                     logger.warning(f"[{telegram_id}] Error guardando archivo en commit: {e}")
 
@@ -251,13 +265,14 @@ class PhotoFlow:
                 self.sessions.finish(telegram_id, "Error en commit de solicitud (flujo manual)")
                 return True
 
+            formula_obj = None
             try:
-                texto_extraido = await asyncio.to_thread(self.ocr.extract_text, file_path)
-                self.requests.save_formula(solicitud_obj, file_path, texto_extraido)
-                if texto_extraido:
-                    logger.info(f"[{telegram_id}] OCR interno guardado ({len(texto_extraido)} chars)")
+                # El archivo se guarda ya; el OCR interno (solo para el admin) va en
+                # segundo plano para no dejar al usuario esperando sin respuesta.
+                formula_obj = self.requests.save_formula(solicitud_obj, file_path, None, keep_temp=True)
             except Exception as e:
                 logger.warning(f"[{telegram_id}] Error guardando archivo en flujo manual: {e}")
+                self._discard_file(file_path)
 
             self.sessions.finish(telegram_id, "Flujo manual completado")
             await update.message.reply_html(
@@ -265,6 +280,10 @@ class PhotoFlow:
                 f"Te notificaremos cuando esté lista.",
                 reply_markup=ReplyKeyboardRemove()
             )
+            if formula_obj:
+                context.application.create_task(
+                    self._store_ocr_text(formula_obj, file_path, telegram_id)
+                )
             return True
         elif text:
             await update.message.reply_text(

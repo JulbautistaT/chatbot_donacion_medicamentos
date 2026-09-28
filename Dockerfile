@@ -6,6 +6,9 @@ ARG GROUP_ID=1000
 ENV LC_ALL=es_ES.UTF-8
 ENV LANG=es_ES.UTF-8
 ENV LANGUAGE=es_ES.UTF-8
+# Tesseract en un solo hilo: con fracciones de CPU (Render free = 0.1 vCPU) el
+# multihilo de OpenMP compite consigo mismo y vuelve el OCR mucho más lento.
+ENV OMP_THREAD_LIMIT=1
 
 
 # install jq

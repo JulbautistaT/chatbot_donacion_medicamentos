@@ -4,8 +4,9 @@ import logging
 import re
 
 from django.conf import settings
+from django.db import close_old_connections
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, TypeHandler, filters
 
 from .constants import SessionSteps
 from .conversation.medication import MedicationFlow
@@ -82,7 +83,23 @@ class BotController:
         # Entradas de Telegram
         self.handlers = TelegramHandlers(self.session_manager, self.dispatcher, self.onboarding)
 
+    @staticmethod
+    async def __refresh_db_connections(update: Update, context) -> None:
+        """Descarta conexiones a la BD caducadas o rotas antes de procesar cada update.
+
+        Django solo hace esta limpieza al inicio de cada petición web; el bot es un
+        proceso de larga duración que nunca pasa por ahí. Si el Postgres gestionado
+        (Neon) cierra la conexión por inactividad, la siguiente consulta fallaba y el
+        usuario recibía el mensaje de "problema inesperado" hasta reiniciar el servicio.
+        """
+        close_old_connections()
+
     def run(self) -> None:
+        # group=-1: se ejecuta antes que cualquier handler de mensajes (group 0).
+        self.__application.add_handler(
+            TypeHandler(Update, self.__refresh_db_connections), group=-1
+        )
+
         self.__application.add_handler(CommandHandler("iniciar", self.handlers.wellcome_user))
         self.__application.add_handler(CommandHandler("salir", self.handlers.end_session_command))
 

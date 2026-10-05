@@ -168,7 +168,7 @@ class PhotoFlow:
                 await update.message.reply_text(
                     "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
                     f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.\n\n"
-                    "Escribe una cantidad de 1 a 4.\n\n"
+                    "Escribe un número de 1 a 4.\n\n"
                     "Ejemplo: <code>2</code>",
                     reply_markup=ForceReply(selective=True),
                     parse_mode="HTML",
@@ -205,7 +205,7 @@ class PhotoFlow:
             await update.message.reply_text(
                 "🔢 ¿Cuántos medicamentos vas a solicitar?\n\n"
                 f"Recuerda que puedes solicitar hasta {MAX_MEDICATIONS} medicamentos.\n\n"
-                "Escribe una cantidad de 1 a 4.\n\n"
+                "Escribe un número de 1 a 4.\n\n"
                 "Ejemplo: <code>2</code>",
                 reply_markup=ForceReply(selective=True),
                 parse_mode="HTML",

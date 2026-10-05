@@ -260,10 +260,10 @@ class OnboardingFlow:
             self.users.update_user(solicitante, session["session_data"])
         await update.message.reply_text(
             f"✅ ¡Registro completado!\n\n"
-            f"🙋‍♂️ <b>Nombre:</b> {solicitante.nombre}\n"
-            f"🆔 <b>Documento:</b> {solicitante.documento}\n"
-            f"📱 <b>Teléfono:</b> {solicitante.telefono}\n"
-            f"🏠 <b>Dirección:</b> {solicitante.direccion_beneficiario}\n"
+            f"<b>Nombre:</b> {solicitante.nombre}\n"
+            f"<b>Documento:</b> {solicitante.documento}\n"
+            f"<b>Teléfono:</b> {solicitante.telefono}\n"
+            f"<b>Dirección:</b> {solicitante.direccion_beneficiario}\n"
             "¿Qué deseas hacer ahora?",
             reply_markup=known_user_keyboard(),
             parse_mode="HTML",

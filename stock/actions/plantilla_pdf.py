@@ -101,7 +101,7 @@ def generar_acta_entrega(queryset):
     logo_path = os.path.join(
         os.getcwd(),
         "utils",
-        "Logotipo.png"
+        "telegrambot_icon.jpg"
     )
 
     logo = (
@@ -111,9 +111,10 @@ def generar_acta_entrega(queryset):
     )
 
     info_text = [
-        Paragraph("<b>JUNTA ACUEDUCTO COMUNITARIO POPULAR 1</b>", style_info),
-        Paragraph("NIT: 96120965-6", style_info),
-        Paragraph("PERSONERÍA JURÍDICA 3554", style_info),
+        Paragraph("<b>OBAIRO DE JESÚS URREGO</b>", style_info),
+        Paragraph("CC. 71598003", style_info),
+        Paragraph("PERSONA NATURAL", style_info),
+        Paragraph("ENCARGADO DE: MedicamentosObairo", style_info),
     ]
 
     header_table = Table(
@@ -230,7 +231,7 @@ def generar_acta_entrega(queryset):
     elements.append(Spacer(1, 15))
 
     texto_datos = f"""
-    Al firmar la presente plantilla, el beneficiario manifiesta haber recibido los medicamentos relacionados anteriormente en las cantidades indicadas, dejando constancia de que los ha revisado y verificado su óptimo estado físico, integridad de empaques y fechas de vigencia, y declara la aceptación de la Política de Tratamiento de Datos Personales, disponible para consulta en el sitio web {settings.POLITICA_DATOS_URL}. La firma de este documento constituye constancia de recepción y aceptación de las condiciones aquí descritas.
+    Al firmar la presente plantilla, el beneficiario manifiesta haber recibido los medicamentos relacionados anteriormente en las cantidades indicadas, dejando constancia de que los ha revisado y verificado su óptimo estado físico, integridad de empaques y fechas de vigencia, y declara la aceptación de la Política de Tratamiento de Datos Personales y términos y condiciones, disponible para consulta en el sitio web {settings.POLITICA_DATOS_URL}. La firma de este documento constituye constancia de recepción y aceptación de las condiciones aquí descritas.
     """
 
     elements.append(

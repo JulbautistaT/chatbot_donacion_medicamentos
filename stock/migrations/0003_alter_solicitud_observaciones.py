@@ -13,6 +13,15 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='solicitud',
             name='observaciones',
-            field=models.TextField(blank=True, help_text='Observaciones adicionales. Este texto se incluye en el mensaje de Telegram que se envía al solicitante al notificar la aceptación o el rechazo de la solicitud, por lo que debe redactarse pensando en que el usuario lo leerá (ej. motivo del rechazo o indicaciones para la entrega).', null=True),
+            field=models.TextField(
+                blank=True,
+                null=True,
+                default=(
+                'Horario de atención: 10:00 a.m. - 5:00 p.m. todos los días.\n'
+                'La dirección de entrega es '
+                'Recuerda firmar la planilla de entrega cuando reclames tus medicamentos.'
+                ),
+                help_text='Observaciones adicionales. Este texto se incluye en el mensaje de Telegram que se envía al solicitante al notificar la aceptación o el rechazo de la solicitud, por lo que debe redactarse pensando en que el usuario lo leerá (ej. motivo del rechazo o indicaciones para la entrega).',
+            ),
         ),
     ]

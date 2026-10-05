@@ -40,12 +40,14 @@ class OnboardingFlow:
 
         await update.message.reply_html(
             f"👋 ¡Hola! Bienvenido al sistema de donación de medicamentos. 💊🤝\n\n"
-            f"Antes de continuar, por favor lee y acepta nuestra <b>Política de Tratamiento de Datos</b>. 📄🔒\n"
-            f"📋 <b>Versión {version}</b>\n"
-            f"🔗 <a href='{url}'>Leer política</a>\n\n"
-            "Al presionar <b>Acepto</b>, autorizas el tratamiento de tus datos personales y "
-            "confirmas que la información suministrada es veraz. También entiendes que la Junta "
-            "únicamente facilita la donación de medicamentos.\n\n"
+            f"Antes de continuar, lee nuestra 📄 <a href='{url}'>Política de Tratamiento de Datos "
+            f"y Términos y Condiciones</a> (versión {version}).\n\n"
+            "Al presionar <b>Acepto</b>:\n"
+            "• Autorizas el tratamiento de tus datos personales y de salud.\n"
+            "• Aceptas los Términos y Condiciones del servicio.\n"
+            "• Confirmas que la información que entregas es veraz.\n\n"
+            "🧒 <b>¿Eres menor de edad?</b> Debe aceptar por ti tu padre, madre o "
+            "representante legal.\n\n"
             "✅ Presiona <b>Acepto</b> para continuar.",
             reply_markup=accept_policy_keyboard(),
         )
@@ -88,7 +90,7 @@ class OnboardingFlow:
             await update.message.reply_html(
                 "😊 Entendemos tu decisión.\n\n"
                 "Para poder usar este servicio es necesario aceptar la "
-                "<b>Política de Tratamiento de Datos</b>.\n\n"
+                "<b>Política de Tratamiento de Datos</b> y los <b>Términos y Condiciones</b>.\n\n"
                 "Si cambias de opinión, puedes escribir <b>Hola</b> cuando quieras "
                 "y te mostraremos la política nuevamente. ¡Estamos aquí para ayudarte! 💊",
                 reply_markup=ReplyKeyboardRemove()

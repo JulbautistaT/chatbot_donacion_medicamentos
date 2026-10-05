@@ -230,7 +230,7 @@ def generar_acta_entrega(queryset):
     elements.append(Spacer(1, 15))
 
     texto_datos = f"""
-    Al firmar la presente plantilla, el beneficiario certifica haber recibido los medicamentos relacionados anteriormente en las cantidades indicadas y declara la aceptación de la Política de Tratamiento de Datos Personales, disponible para consulta en el sitio web {settings.POLITICA_DATOS_URL}. La firma de este documento constituye constancia de recepción y aceptación de las condiciones aquí descritas.
+    Al firmar la presente plantilla, el beneficiario manifiesta haber recibido los medicamentos relacionados anteriormente en las cantidades indicadas, dejando constancia de que los ha revisado y verificado su óptimo estado físico, integridad de empaques y fechas de vigencia, y declara la aceptación de la Política de Tratamiento de Datos Personales, disponible para consulta en el sitio web {settings.POLITICA_DATOS_URL}. La firma de este documento constituye constancia de recepción y aceptación de las condiciones aquí descritas.
     """
 
     elements.append(

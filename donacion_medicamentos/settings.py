@@ -178,8 +178,11 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 MEDIA_URL_PUBLIC = 'public'
 MEDIA_HOST = os.getenv('MEDIA_HOST', '')
-# Enlace público a la política de datos (bot de Telegram y actas de entrega)
-POLITICA_DATOS_URL = f"{(MEDIA_HOST or 'http://127.0.0.1:8000').rstrip('/')}/politica-de-datos/"
+# Enlace público a la política de datos (bot de Telegram y actas de entrega).
+# No se deriva de MEDIA_HOST: Telegram no abre enlaces a localhost/127.0.0.1, así que
+# por defecto apunta al sitio en producción y solo cambia si se define la variable.
+POLITICA_DATOS_URL = os.getenv('POLITICA_DATOS_URL') or \
+    'https://chatbot-donacion-medicamentos.onrender.com/politica-de-datos/'
 
 
 

@@ -6,5 +6,6 @@ logs
 __pycache__
 *.pyc
 db.sqlite3
-prueba_funcionales.md
+anotaciones_despliegue.md
+GUIA_DESPLIEGUE_GRATUITO.md
 .claude

@@ -3,6 +3,7 @@
 
 {% block extrahead %}
 {{ block.super }}
-<link rel="icon" type="image/png" href="{% static 'utils\telegrambot_icon.jpg' %}">
-<link rel="apple-touch-icon" href="{% static 'utils\telegrambot_icon.jpg' %}">
+{# Generados a partir de utils/telegrambot_icon.jpg; {% static %} solo encuentra archivos dentro de las carpetas static/ de las apps #}
+<link rel="icon" type="image/png" href="{% static 'stock/favicon.png' %}">
+<link rel="apple-touch-icon" href="{% static 'stock/apple-touch-icon.png' %}">
 {% endblock %}

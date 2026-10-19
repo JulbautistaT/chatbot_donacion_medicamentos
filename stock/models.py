@@ -1,6 +1,13 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 
+OBSERVACIONES_POR_DEFECTO = (
+    'Horario de atención: 10:00 a.m. - 5:00 p.m. todos los días.\n'
+    'La dirección de entrega es Cra 43B # 108-42, sede Acueducto.\n'
+    'Recuerda firmar la planilla de entrega cuando reclames tus medicamentos.\n'
+    'Plazo máximo para reclamar: una semana, de lo contrario se donará a otra persona.'
+)
+
 
 class DetalleSolicitud(models.Model):
     solicitud = models.ForeignKey(
@@ -193,6 +200,7 @@ class Solicitud(models.Model):
     observaciones = models.TextField(
         blank=True,
         null=True,
+        default=OBSERVACIONES_POR_DEFECTO,
         help_text=(
             'Observaciones adicionales. Este texto se incluye en el mensaje de Telegram '
             'que se envía al solicitante al notificar la aceptación o el rechazo de la '

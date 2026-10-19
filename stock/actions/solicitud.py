@@ -4,6 +4,7 @@ import logging
 import io
 from django.conf import settings
 from django.http import HttpResponse
+from django.utils import timezone
 
 def download_requests_info(modeladmin, request, queryset):
     """
@@ -25,7 +26,7 @@ def download_requests_info(modeladmin, request, queryset):
         data.append({
             'Solicitante': solicitud.solicitante.nombre,
             'Documento': solicitud.solicitante.documento,
-            'Fecha': solicitud.fecha.strftime('%Y-%m-%d'),
+            'Fecha': timezone.localtime(solicitud.fecha).strftime('%d-%m-%Y'),
             'Estado': solicitud.get_estado_display(),
             'Observaciones': solicitud.observaciones,
             'Medicamentos Solicitados': medicamentos_solicitados

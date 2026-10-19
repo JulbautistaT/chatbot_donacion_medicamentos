@@ -94,7 +94,7 @@ class AnuncioAdmin(admin.ModelAdmin):
     ]
 
     ACCIONES = [
-        "Enviar anuncio masivo.",
+        "Enviar mensaje anuncio masivo. -- TELEGRAM",
         "Desactivar anuncios seleccionados.",
         "Eliminar anuncios seleccionados."
     ]

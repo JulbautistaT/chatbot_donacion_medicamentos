@@ -1,6 +1,7 @@
 import os
 from django.conf import settings
 from django.http import HttpResponse
+from django.utils import timezone
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
@@ -40,9 +41,11 @@ def generar_acta_entrega(queryset):
         'formulas'
     )
 
+    # Fecha y hora de generación en el nombre para que cada acta descargada sea distinguible
+    generada = timezone.localtime().strftime('%d-%m-%Y_%H-%M')
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = (
-        'attachment; filename="acta_entrega.pdf"'
+        f'attachment; filename="planilla_de_entrega_{generada}.pdf"'
     )
 
     doc = SimpleDocTemplate(
@@ -161,7 +164,7 @@ def generar_acta_entrega(queryset):
         for detalle in solicitud.detalles.all():
             data.append([
                 Paragraph(
-                    solicitud.fecha.strftime('%d-%m-%Y'),
+                    timezone.localtime(solicitud.fecha).strftime('%d-%m-%Y'),
                     style_cell
                 ),
                 Paragraph(

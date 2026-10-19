@@ -1,0 +1,8 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="icon" type="image/png" href="{% static 'stock/favicon.png' %}">
+<link rel="apple-touch-icon" href="{% static 'stock/apple-touch-icon.png' %}">
+{% endblock %}

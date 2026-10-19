@@ -58,7 +58,7 @@ class EntregaAdmin(AdminConAyuda):
         "Consultar la fecha y las observaciones de cada entrega."
     ]
     ACCIONES = [
-        "Generar plantilla de entrega en PDF.",
+        "Generar planilla de entrega en PDF.",
         "Eliminar entregas seleccionadas."
     ]
     CONSIDERACIONES = [

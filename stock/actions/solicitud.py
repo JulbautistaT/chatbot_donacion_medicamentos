@@ -82,6 +82,7 @@ def notificar_solicitudes_aceptadas(modeladmin, request, queryset):
 
     enviados = 0
     errores = 0
+    queryset = queryset.select_related('solicitante').prefetch_related('detalles__medicamento')
 
     for solicitud in queryset:
 
@@ -91,6 +92,20 @@ def notificar_solicitudes_aceptadas(modeladmin, request, queryset):
             f"Tu solicitud fue aprobada.\n\n"
             f"📌 Acércate a reclamar tus medicamentos.\n\n"
         )
+
+        detalles = solicitud.detalles.all()
+        if detalles:
+            mensaje += "💊 *Medicamentos disponibles para recoger:*\n"
+
+            for detalle in detalles:
+                linea = f"• {detalle.medicamento}"
+                if detalle.cantidad_entregada:
+                    linea += f" — {detalle.cantidad_entregada}"
+                    if detalle.tipo_presentacion:
+                        linea += f" {detalle.get_tipo_presentacion_display()}"
+                mensaje += linea + "\n"
+            mensaje += "\n"
+
 
         if solicitud.observaciones:
             mensaje += f"📝 Observaciones: {solicitud.observaciones}\n\n"
